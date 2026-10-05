@@ -1,0 +1,4 @@
+[
+  { "directory": "veyra", "settingsFile": "cue-data.json" },
+  { "directory": "cue", "settingsFile": "cue-data.json" }
+]

@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <defs>
+    <linearGradient id="tile" x1="8" y1="4" x2="54" y2="64" gradientUnits="userSpaceOnUse"><stop stop-color="#202B47"/><stop offset="1" stop-color="#11172B"/></linearGradient>
+    <linearGradient id="wing" x1="29" y1="47" x2="48" y2="15" gradientUnits="userSpaceOnUse"><stop stop-color="#64DEC9"/><stop offset="1" stop-color="#9395FF"/></linearGradient>
+  </defs>
+  <rect x="1" y="1" width="62" height="62" rx="16" fill="url(#tile)" stroke="#FFFFFF" stroke-opacity=".12"/>
+  <path d="M16 19L29 44" stroke="#5EE1C5" stroke-width="7" stroke-linecap="round"/>
+  <path d="M31 45L48 16" stroke="url(#wing)" stroke-width="7" stroke-linecap="round"/>
+  <circle cx="17" cy="46" r="3" fill="#9395FF"/>
+</svg>

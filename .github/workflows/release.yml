@@ -1,0 +1,29 @@
+﻿name: Build Windows installer
+
+# Published releases use the installer verified on a Windows desktop.
+# Manual builds are downloadable artifacts and do not replace release assets.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - run: npm run dist:win
+        env:
+          VEYRA_BUNDLE_WHISPER: '1'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Veyra-Windows
+          path: dist/Veyra-win-x64.exe
+          if-no-files-found: error
