@@ -6,7 +6,7 @@ const originalLoad = Module._load;
 const originalFetch = global.fetch;
 let captured;
 class OpenAIStub {
-  constructor() { this.chat = { completions: { create: async request => { captured = request; return []; } } }; }
+  constructor() { this.chat = { completions: { create: async request => { captured = request; return [{ choices: [{ delta: { content: 'ok' } }] }]; } } }; }
 }
 OpenAIStub.AzureOpenAI = OpenAIStub;
 Module._load = function(request, parent, isMain) {

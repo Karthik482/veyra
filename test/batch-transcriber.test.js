@@ -27,3 +27,21 @@ test('Assist flush preserves both speaker channels and capture can continue', as
   assert.equal(finals.length, 3);
   batch.stop();
 });
+
+test('interviewer-only finalization leaves microphone speech out of the wait', async () => {
+  let finish;
+  const batch = new BatchTranscriber({ transcribe: () => new Promise(resolve => { finish = resolve; }), onTranscript() {} });
+  for (let i = 0; i < 10; i++) batch.push('you', frame(1400));
+  assert.equal(batch.hasPending('you'), true);
+  assert.equal(batch.hasPending('them'), false);
+  batch.requestFinalize('them');
+  assert.equal(batch.pending, 0, 'candidate speech was not flushed');
+  batch.requestFinalize('you');
+  assert.equal(batch.pendingByChannel.you, 1);
+  assert.equal(batch.hasPending('them'), false);
+  await new Promise(resolve => setImmediate(resolve));
+  finish('candidate answer');
+  await batch.tails.you;
+  assert.equal(batch.pendingByChannel.you, 0);
+  batch.stop();
+});

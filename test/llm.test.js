@@ -5,6 +5,7 @@ const { OPTIONAL_API_KEY_PLACEHOLDER } = require('../src/openai-compatible');
 
 let capturedClientOptions = null;
 let capturedCompletionRequest = null;
+let fakeParts = null;
 const originalModuleLoad = Module._load;
 
 Module._load = function loadWithOpenAIStub(request, parent, isMain) {
@@ -16,7 +17,7 @@ Module._load = function loadWithOpenAIStub(request, parent, isMain) {
           completions: {
             create: async (completionRequest) => {
               capturedCompletionRequest = completionRequest;
-              return [{ choices: [{ delta: { content: 'ok' } }] }];
+              return fakeParts || [{ choices: [{ delta: { content: 'ok' } }] }];
             }
           }
         };
@@ -46,6 +47,56 @@ function createCustomSettings(overrides = {}) {
 test.beforeEach(() => {
   capturedClientOptions = null;
   capturedCompletionRequest = null;
+  fakeParts = null;
+});
+
+test('upgrades old OpenAI defaults and streams images with modern reasoning parameters', async () => {
+  for (const smart of [false, true]) {
+    const llm = createLLM({ provider: 'openai', smart, apiKeys: { openai: 'test' },
+      models: { openai: { fast: 'gpt-4o-mini', smart: 'gpt-4o' } } });
+    assert.equal(llm.model, 'gpt-6.1-sol');
+    await llm.stream({ system: 'Solve SQL', turns: [{ role: 'user', text: 'Question' }],
+      imageDataUrl: 'data:image/png;base64,abc', onToken: () => {} });
+    assert.equal(capturedCompletionRequest.reasoning_effort, smart ? 'medium' : 'low');
+    assert.ok(capturedCompletionRequest.max_completion_tokens >= 8192);
+    assert.equal(capturedCompletionRequest.max_tokens, undefined);
+    assert.equal(capturedCompletionRequest.messages[1].content[1].type, 'image_url');
+  }
+});
+
+test('Fast spoken requests use Luna with no reasoning; Smart and explicit models are preserved', async () => {
+  const settings = { provider: 'openai', smart: false, apiKeys: { openai: 'test' }, models: { openai: { fast: 'gpt-6.1-sol', smart: 'gpt-6.1-sol' } } };
+  const llm = createLLM(settings, { spoken: true });
+  assert.equal(llm.model, 'gpt-6-luna');
+  await llm.stream({ system: '', turns: [], onToken: () => {} });
+  assert.equal(capturedCompletionRequest.reasoning_effort, 'none');
+  assert.equal(capturedCompletionRequest.max_completion_tokens, 2048);
+  assert.equal(createLLM({ ...settings, smart: true }, { spoken: true }).model, 'gpt-6.1-sol');
+  assert.equal(createLLM({ ...settings, models: { openai: { fast: 'gpt-5.4' } } }, { spoken: true }).model, 'gpt-5.4');
+});
+
+test('keeps explicitly selected non-default models and legacy compatible request options', async () => {
+  const llm = createLLM(createCustomSettings());
+  await llm.stream({ system: '', turns: [], onToken: () => {} });
+  assert.equal(capturedCompletionRequest.max_tokens, 3072);
+  assert.equal(capturedCompletionRequest.reasoning_effort, undefined);
+});
+
+test('low latency Assist keeps the Smart model and uses low reasoning with enough code output budget', async () => {
+  const settings = { provider: 'openai', smart: true, apiKeys: { openai: 'test' }, models: { openai: { fast: 'gpt-6-luna', smart: 'gpt-6.1-sol' } } };
+  const llm = createLLM(settings, { lowLatency: true, spoken: true });
+  assert.equal(llm.model, 'gpt-6.1-sol');
+  await llm.stream({ system: 'Solve SQL', turns: [{ role: 'user', text: 'Question' }], onToken: () => {} });
+  assert.equal(capturedCompletionRequest.reasoning_effort, 'low');
+  assert.ok(capturedCompletionRequest.max_completion_tokens >= 8192);
+});
+
+test('reports truncated or empty OpenAI output instead of recording success', async () => {
+  const llm = createLLM(createCustomSettings());
+  fakeParts = [{ choices: [{ delta: { content: 'SELECT' }, finish_reason: 'length' }] }];
+  await assert.rejects(llm.stream({ system: '', turns: [], onToken: () => {} }), /incomplete/);
+  fakeParts = [{ choices: [{ delta: {}, finish_reason: 'stop' }] }];
+  await assert.rejects(llm.stream({ system: '', turns: [], onToken: () => {} }), /no answer/);
 });
 
 test('routes the Custom provider through the configured OpenAI-compatible endpoint', async () => {

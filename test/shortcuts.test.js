@@ -61,9 +61,12 @@ test('disabled hotkeys are unregistered', () => {
 });
 
 test('defaults cover the core actions', () => {
+  assert.strictEqual(DEFAULTS.say, process.platform === 'win32' ? 'Control+Shift' : 'CommandOrControl+Shift+Return');
+  assert.ok(isValid('Control+Shift'));
   assert.strictEqual(DEFAULTS.assist, 'CommandOrControl+Return');
   assert.ok(DEFAULTS.leetcode);
   assert.ok(DEFAULTS.quit);
+  for (const direction of ['Up', 'Down', 'Left', 'Right']) assert.strictEqual(DEFAULTS['scroll' + direction], 'Alt+' + direction);
 });
 
 test('resolveShortcuts merges overrides', () => {

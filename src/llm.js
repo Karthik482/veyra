@@ -11,7 +11,7 @@ const CUSTOM_PROVIDER = 'custom';
 // available, so it is the single default used everywhere in this file.
 const CURRENT_GEMINI_DEFAULT = 'gemini-2.5-flash';
 const DEFAULT_MODELS = {
-  openai: 'gpt-4o-mini',
+  openai: 'gpt-6.1-sol',
   anthropic: 'claude-3-5-haiku-latest',
   gemini: CURRENT_GEMINI_DEFAULT,
   ollama: 'llama3.2',
@@ -105,7 +105,7 @@ function stripDataUrl(dataUrl) {
   return m ? { mime: m[1], b64: m[2] } : null;
 }
 
-async function streamOpenAI({ apiKey, baseURL, model, system, turns, imageDataUrls, maxTokens, onToken }) {
+async function streamOpenAI({ apiKey, baseURL, model, system, turns, imageDataUrls, maxTokens, reasoningEffort, onToken }) {
   const OpenAI = require('openai');
   const client = new OpenAI(baseURL ? { apiKey, baseURL } : { apiKey });
   const messages = [{ role: 'system', content: system }];
@@ -122,12 +122,20 @@ async function streamOpenAI({ apiKey, baseURL, model, system, turns, imageDataUr
       messages.push({ role: t.role, content: t.text });
     }
   });
-  const stream = await client.chat.completions.create({ model, messages, stream: true, max_tokens: maxTokens });
+  const reasoningModel = (/^gpt-[56](?:[.-]|$)|^o[134](?:-|$)/i.test(model)) && !/chat-latest/i.test(model);
+  const options = reasoningModel
+    ? { max_completion_tokens: reasoningEffort === 'none' ? maxTokens : Math.max(maxTokens, reasoningEffort === 'medium' ? 16384 : 8192), reasoning_effort: reasoningEffort || 'low' }
+    : { max_tokens: maxTokens };
+  const stream = await client.chat.completions.create({ model, messages, stream: true, ...options });
   let full = '';
   for await (const part of stream) {
     const d = part.choices && part.choices[0] && part.choices[0].delta && part.choices[0].delta.content;
     if (d) { full += d; onToken(d); }
+    if (part.choices?.[0]?.finish_reason === 'length') {
+      throw new Error('The answer reached the model output limit and is incomplete. Try Smart mode or ask for a shorter solution.');
+    }
   }
+  if (!full.trim()) throw new Error('The model returned no answer. Try Smart mode or retry the request.');
   return full;
 }
 
@@ -296,7 +304,7 @@ async function streamOllama({ apiKey, model, system, turns, imageDataUrls, maxTo
   return full;
 }
 
-function createLLM(settings) {
+function createLLM(settings, { spoken = false, lowLatency = false } = {}) {
   const provider = settings.provider;
   const keys = settings.apiKeys || {};
   let apiKey = keys[provider];
@@ -305,10 +313,17 @@ function createLLM(settings) {
   const tier = settings.smart ? 'smart' : 'fast';
   const models = settings.models || {};
   let model = (models[provider] || {})[tier];
+  // Upgrade previous bundled OpenAI defaults, preserving other explicit choices.
+  if (provider === 'openai' && (!model || model === 'gpt-4o-mini' || model === 'gpt-4o')) {
+    model = 'gpt-6.1-sol';
+  }
   if (provider === 'gemini' && DEAD_GEMINI_MODEL_RE.test(model || '')) {
     model = CURRENT_GEMINI_DEFAULT;
   }
   if (!model) model = DEFAULT_MODELS[provider] || '';
+  // Only route the bundled OpenAI default; preserve explicit model choices.
+  const fastSpoken = spoken && !settings.smart && provider === 'openai' && model === 'gpt-6.1-sol';
+  if (fastSpoken) model = (models.openai || {}).spoken || 'gpt-6-luna';
   const minimaxRegion = settings.minimaxRegion || 'global_en';
   const endpoint = settings.azureEndpoint || '';
 
@@ -334,7 +349,9 @@ function createLLM(settings) {
   }
 
   const ready = !configurationError && !!model;
-  const maxTokens = settings.smart ? 1400 : 700;
+  const maxTokens = fastSpoken ? 2048 : settings.smart ? 4096 : 3072;
+  const reasoningEffort = lowLatency && provider === 'openai' && model === 'gpt-6.1-sol' ? 'low'
+    : model === 'gpt-6-luna' && !settings.smart ? 'none' : settings.smart ? 'medium' : 'low';
 
   return {
     provider, model, apiKey, baseURL,
@@ -343,7 +360,7 @@ function createLLM(settings) {
     async stream(params) {
       if (!ready) throw new Error(configurationError || `Complete the ${provider} provider settings.`);
       const imageDataUrls = [...new Set(params.imageDataUrls || (params.imageDataUrl ? [params.imageDataUrl] : []))].slice(0, 6);
-      const args = { apiKey, baseURL, endpoint, model, maxTokens, ...params, imageDataUrls, turns: sanitizeTurns(params.turns) };
+      const args = { apiKey, baseURL, endpoint, model, maxTokens, reasoningEffort, ...params, imageDataUrls, turns: sanitizeTurns(params.turns) };
       try {
         if (provider === 'openai') return await streamOpenAI(args);
         if (provider === CUSTOM_PROVIDER) return await streamOpenAI(args);

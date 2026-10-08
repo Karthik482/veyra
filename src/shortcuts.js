@@ -3,7 +3,7 @@
 
 const ACTIONS = {
   assist: ['Assist', 'CommandOrControl+Return'],
-  say: ['What should I say?', 'CommandOrControl+Shift+Return'],
+  say: ['What should I say?', process.platform === 'win32' ? 'Control+Shift' : 'CommandOrControl+Shift+Return'],
   leetcode: ['Solve coding problem', 'CommandOrControl+H'],
   hide: ['Hide / show panel', 'CommandOrControl+Shift+/'],
   listening: ['Start / stop listening', 'CommandOrControl+Shift+L'],
@@ -14,6 +14,10 @@ const ACTIONS = {
   moveDown: ['Move window down', 'Control+Down'],
   moveLeft: ['Move window left', 'Control+Left'],
   moveRight: ['Move window right', 'Control+Right'],
+  scrollUp: ['Scroll content up', 'Alt+Up'],
+  scrollDown: ['Scroll content down', 'Alt+Down'],
+  scrollLeft: ['Scroll content left', 'Alt+Left'],
+  scrollRight: ['Scroll content right', 'Alt+Right'],
   quit: ['Quit Veyra', 'CommandOrControl+Shift+X']
 };
 const DEFAULTS = Object.fromEntries(Object.entries(ACTIONS).map(([key, value]) => [key, value[1]]));
@@ -48,6 +52,7 @@ function findConflicts(map, platform = process.platform) {
 
 // Basic validity check: must contain at least a non-modifier key and plausible modifiers.
 function isValid(accel) {
+  if (typeof accel === 'string' && canonical(accel, 'win32') === 'ctrl+shift') return true;
   if (typeof accel !== 'string' || !accel.trim()) return false;
   const parts = accel.toLowerCase().split('+').map(s => s.trim());
   const key = parts.pop();
@@ -58,13 +63,13 @@ function isValid(accel) {
 
 function canonical(accel, platform = process.platform) {
   const parts = accel.toLowerCase().split('+').map(s => s.trim());
-  let key = parts.pop();
+  let key = parts.every(p => MODIFIERS[p]) ? '' : parts.pop();
   key = ({ enter: 'return', esc: 'escape', comma: ',', period: '.', slash: '/', backslash: '\\' })[key] || key;
   const modifiers = parts.map(p => {
     const m = MODIFIERS[p];
     return m === 'primary' ? (platform === 'darwin' ? 'cmd' : 'ctrl') : m === 'super' && platform === 'darwin' ? 'cmd' : m;
   });
-  return [...new Set(modifiers)].sort().concat(key).join('+');
+  return [...new Set(modifiers)].sort().concat(key ? [key] : []).join('+');
 }
 function validate(map) {
   for (const [action, value] of Object.entries(map)) {

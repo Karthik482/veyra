@@ -64,3 +64,23 @@ test('leetcode mode never applies AI rules (coding answers stay strict)', () => 
   assert.ok(!withRules.includes(RULES), 'leetcode must not leak user rules into the prompt');
   assert.match(withRules, /competitive programmer/);
 });
+
+test('coding format orders clarification, approach and annotated code after general Style rules', () => {
+  for (const mode of ['assist', 'leetcode']) {
+    const system = MODES[mode].buildSystem(null, 'Only return one sentence.');
+    assert.ok(system.indexOf('**Clarify / assume**') < system.indexOf('**Approach**'));
+    assert.ok(system.indexOf('**Approach**') < system.indexOf('**Code**'));
+    assert.match(system, /above each CTE declaration/);
+    assert.match(system, /above the final query/);
+    assert.match(system, /comment directly below every nonblank code line/);
+    if (mode === 'assist') assert.ok(system.lastIndexOf('**Clarify / assume**') > system.indexOf('Only return one sentence.'));
+  }
+});
+
+test('say mode targets the latest interviewer question after a candidate response', () => {
+  const transcript = Array.from({ length: 20 }, (_, i) => ({ channel: i % 2 ? 'you' : 'them', text: `turn ${i}` }));
+  const prompt = MODES.say.build({ transcript });
+  assert.match(prompt, /CURRENT INTERVIEWER QUESTION:\nturn 18/);
+  assert.match(prompt, /Do not continue or rewrite the candidate's previous response/);
+  assert.ok(!prompt.includes('Them: turn 10\n'));
+});

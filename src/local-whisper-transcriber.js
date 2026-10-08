@@ -26,6 +26,7 @@ class LocalWhisperTranscriber {
     this.segmenters = new Map();
     this.queueTail = Promise.resolve();
     this.pendingJobs = 0;
+    this.pendingByChannel = { you: 0, them: 0 };
     this.acceptingAudio = false;
     this.discardPendingJobs = false;
   }
@@ -58,11 +59,12 @@ class LocalWhisperTranscriber {
     segmenter.push(pcm);
   }
 
-  requestFinalize() {
-    for (const segmenter of this.segmenters.values()) segmenter.flush?.();
+  requestFinalize(channel) {
+    for (const [key, segmenter] of this.segmenters) if (!channel || key === channel) segmenter.flush?.();
   }
 
-  hasPending() {
+  hasPending(channel) {
+    if (channel) return this.pendingByChannel[channel] > 0 || !!this.segmenters.get(channel)?.collecting;
     return this.pendingJobs > 0 || [...this.segmenters.values()].some(segmenter => segmenter.collecting);
   }
 
@@ -90,6 +92,7 @@ class LocalWhisperTranscriber {
   _enqueue(channel, pcm) {
     const startedAt = Date.now();
     this.pendingJobs += 1;
+    this.pendingByChannel[channel] += 1;
     this.onStatus({ status: 'transcribing', channel, pending: this.pendingJobs });
 
     const job = this.queueTail.then(async () => {
@@ -104,6 +107,7 @@ class LocalWhisperTranscriber {
       })
       .finally(() => {
         this.pendingJobs -= 1;
+        this.pendingByChannel[channel] -= 1;
         if (this.acceptingAudio && this.pendingJobs === 0) {
           this.onStatus({ status: 'ready', message: 'Local Whisper is ready.' });
         }

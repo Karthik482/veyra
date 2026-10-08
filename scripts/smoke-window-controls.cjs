@@ -32,7 +32,7 @@ app.on('browser-window-created', (_event, win) => {
   const pause = () => new Promise(resolve => setTimeout(resolve, 150));
   contents.once('did-finish-load', async () => {
     try {
-      await until("document.querySelectorAll('[data-shortcut]').length === 13");
+      await until("document.querySelectorAll('[data-shortcut]').length === 17");
       win.show(); win.focus();
       await evaluate("document.querySelector('#ob-skip').click(); document.querySelector('#more-btn').click(); document.querySelector('[data-tab=shortcuts]').click()");
       await until("!document.querySelector('[data-pane=shortcuts]').classList.contains('hidden')");

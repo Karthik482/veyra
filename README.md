@@ -15,13 +15,19 @@ Download [`Veyra-win-x64.exe` from Releases](https://github.com/Karthik482/veyra
 
 Open **Settings** to choose an AI provider and enter your own API key. Supported providers include OpenAI, Anthropic, Google Gemini, and Azure AI Foundry. Listening can use Deepgram, OpenAI Realtime, Gemini, or local Whisper, depending on your configuration. Local Whisper requires a downloaded or imported model in Settings.
 
-- **Assist** uses screen context and the recent conversation.
+- **Assist** (Ctrl+Enter) uses screen context and the recent conversation, always with the configured Smart model.
+- With the bundled OpenAI Smart model, Assist uses low reasoning for quicker response starts, reuses already stable speech text, and captures the screen while speech finishes. Coding answers list clarification questions/assumptions and a brief approach before code. SQL comments explain each CTE and the final query; Python comments appear directly below each code line.
+- On Windows, press and release **Ctrl+Shift** for **What should I say?**. Using another key in the combination suppresses this action.
+- **What should I say?** always uses Fast routing: conversational questions and simple definitions use Spoken; coding and complex technical questions keep the stronger Fast model. It reuses partial-transcript stability measured before the hotkey rather than starting an additional wait.
 - **What should I say?**, **Follow-up questions**, and **Recap** use conversation context.
+- Spoken interview answers match the question's depth: simple questions stay brief; complex technical, behavioral, design, and experience questions receive a developed explanation with relevant examples and trade-offs, without a fixed sentence cap. Your AI Style rules still control tone and length.
 - **Smart** chooses the configured higher-capability model.
+- With OpenAI and Smart off, spoken interview questions use the **Spoken** model (GPT-6 Luna by default). Coding and technical reasoning use **Fast** (GPT-6.1 Sol by default). Smart uses the configured Smart model for all questions.
 - **View conversation** shows the transcript.
 - **Settings → Hotkeys** lists each action and its binding. Click **Edit**, press your preferred keys, then **Apply**. Conflicts are reported before saving.
 - Drag an edge or corner to resize. Drag the top bar to move. The redundant labeled Resize button has been removed.
 - **Ctrl + arrow** moves the window without resizing on Windows.
+- **Alt + arrow** scrolls Veyra content without moving the window: Up/Down scroll answers or the open Settings panel; Left/Right scroll wide code blocks. Hover a scrollable area to target it. These hotkeys also work while another app has focus.
 - **Ctrl + Shift + X** quits on Windows; **Command + Shift + X** quits on macOS. These bindings can be customized.
 
 The meeting controls do not contain a text-entry bar. The microphone and meeting-audio channels remain separate. Windows microphone capture requests system-wide echo cancellation; use the audio status in Settings to check what your device actually enabled.

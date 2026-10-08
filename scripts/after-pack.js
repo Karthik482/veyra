@@ -21,6 +21,7 @@ module.exports = async function afterPack(context) {
     const directory = path.join(context.appOutDir, 'resources', 'window-runtime');
     fs.mkdirSync(directory, { recursive: true });
     fs.copyFileSync(helper, path.join(directory, 'Veyra.WindowMover.exe'));
+    fs.copyFileSync(prepareWindowRuntime('ModifierShortcut', 'modifier-shortcut'), path.join(directory, 'Veyra.ModifierShortcut.exe'));
   }
   if (!process.env.VEYRA_BUNDLE_WHISPER) {
     console.log('[veyra] Skipping the bundled whisper runtime (set VEYRA_BUNDLE_WHISPER=1 to include it).');

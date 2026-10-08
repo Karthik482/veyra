@@ -9,7 +9,7 @@ const localRequire = Module.createRequire(path.join(root, 'main.js'));
 const image = text => 'data:image/png;base64,' + Buffer.from(text).toString('base64');
 
 function harness() {
-  const handlers = new Map(), requests = [];
+  const handlers = new Map(), requests = [], captures = [];
   const settings = { provider: 'openai', sttProvider: 'auto', apiKeys: { openai: 'fake' }, models: { openai: { fast: 'fake-model' } } };
   let nextImage = image('code');
   const module = { exports: {} };
@@ -17,7 +17,7 @@ function harness() {
     require(request) {
       if (request === 'electron') return { app: { isPackaged: true, whenReady: () => ({ then() {} }), on() {} }, ipcMain: { handle: (name, fn) => handlers.set(name, fn), on: (name, fn) => handlers.set(name, fn) } };
       if (request === './src/store') return { getSettings: () => settings };
-      if (request === './src/screen') return { captureScreenshot: async () => { if (nextImage instanceof Error) throw nextImage; return nextImage; } };
+      if (request === './src/screen') return { captureScreenshot: async () => { captures.push(Date.now()); if (nextImage instanceof Error) throw nextImage; return nextImage; } };
       if (request === './src/applink') return { recordEvent() {} };
       if (request === './src/llm') return { createLLM: () => ({ ready: true, provider: 'openai', model: 'fake-model', stream: async args => { requests.push(args); args.onToken('Use a hash set.'); return 'Use a hash set.'; } }) };
       if (request === './src/stt-streaming') return { createStreamingSTT: (...args) => {
@@ -32,7 +32,7 @@ function harness() {
   vm.runInNewContext(fs.readFileSync(path.join(root, 'main.js'), 'utf8') + '\nmodule.exports = { initStreamingSTT, streamingSTT, transcript, state, runFeature, publishTranscript, assistSession, transcriptionState: () => ({ streamingMode, sttDisabled, batch: !!batchTranscriber }) };', sandbox);
   const main = module.exports;
   main.initStreamingSTT();
-  return { ...main, handlers, requests, settings, setImage: value => { nextImage = value; } };
+  return { ...main, handlers, requests, captures, settings, setImage: value => { nextImage = value; } };
 }
 function event(stt, type, item_id, text) { stt._handleEvent({ type: 'conversation.item.input_audio_transcription.' + type, item_id, [type === 'delta' ? 'delta' : 'transcript']: text }); }
 
@@ -68,6 +68,23 @@ test('immediate Assist waits for latest final and includes both finalized statem
   assert.match(prompt, /WACC calculated/);
   assert.doesNotMatch(prompt, /not yet final/);
   assert.equal(app.transcript.length, 2);
+});
+
+test('Assist overlaps screen capture with speech settlement and still uses the new finalized question', async () => {
+  const app = harness();
+  let finishCapture;
+  app.setImage(new Promise(resolve => { finishCapture = resolve; }));
+  event(app.streamingSTT.them, 'delta', 'code', 'How would you optimize this code?');
+  const request = app.runFeature('assist');
+  assert.equal(app.captures.length, 1, 'screen capture must start while speech is still pending');
+  assert.equal(app.requests.length, 0, 'do not send the model an unfinished context');
+  event(app.streamingSTT.them, 'completed', 'code', 'How would you optimize this code for large inputs?');
+  finishCapture(image('latest code'));
+  await request;
+  assert.equal(app.captures.length, 1, 'reuse the capture rather than doing it twice');
+  assert.match(app.requests[0].turns.at(-1).text, /large inputs/);
+  assert.doesNotMatch(app.requests[0].turns.at(-1).text, /not yet final/);
+  assert.equal(app.requests[0].imageDataUrls[0], image('latest code'));
 });
 
 test('slow finalization uses accumulated interim after a bounded wait without adding false finals', async () => {

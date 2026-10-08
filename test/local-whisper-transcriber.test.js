@@ -2,6 +2,23 @@ const assert = require('node:assert/strict');
 const test = require('node:test');
 const { LocalWhisperTranscriber } = require('../src/local-whisper-transcriber');
 
+test('channel-specific pending state ignores candidate-only local transcription', async () => {
+  let finish;
+  const local = new LocalWhisperTranscriber({
+    sessionFactory: () => ({ start: async () => {}, transcribe: () => new Promise(resolve => { finish = resolve; }), stop: async () => {} }),
+    segmenterFactory: () => ({ stop() {} }),
+  });
+  await local.start();
+  const job = local._enqueue('you', Buffer.from('candidate'));
+  assert.equal(local.hasPending('you'), true);
+  assert.equal(local.hasPending('them'), false);
+  await new Promise(resolve => setImmediate(resolve));
+  finish('candidate');
+  await job; await local.queueTail;
+  assert.equal(local.pendingByChannel.you, 0);
+  await local.stop();
+});
+
 test('serializes both channels through one persistent session', async () => {
   let activeInferences = 0;
   let maximumConcurrency = 0;

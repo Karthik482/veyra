@@ -1,4 +1,5 @@
 const { createHash } = require('node:crypto');
+const { currentInterviewTurns } = require('./interview-turns');
 
 const MAX_MANUAL_IMAGES = 4;
 const MAX_ASSIST_TURNS = 3;
@@ -55,7 +56,7 @@ class AssistSession {
   clearScreenshots() { this.manual = []; return this.status(); }
   status() { return { screenshots: this.manual.length, maxScreenshots: MAX_MANUAL_IMAGES, previousTurns: this.history.length }; }
 
-  build({ transcript, interims = [], freshDataUrl = null, now = Date.now() }) {
+  build({ transcript, interims = [], freshDataUrl = null, includeImages = true, now = Date.now() }) {
     const finalized = transcript.filter(turn => (turn.seq || 0) > this.afterSequence &&
       (turn.contextRevision == null || turn.contextRevision === this.revision) &&
       (!turn.startedAt || turn.startedAt >= this.clearedAt)).slice(-14);
@@ -69,7 +70,7 @@ class AssistSession {
       length += text.length;
     }
     const pending = interims.filter(turn => turn.text?.trim()).map(turn => ({ ...turn, text: boundedText(turn.text, 4000) }));
-    const latestQuestion = [...recent, ...pending].filter(turn => turn.channel === 'them').at(-1)?.text || '';
+    const latestQuestion = currentInterviewTurns(recent, pending).filter(turn => turn.channel === 'them').at(-1)?.text || '';
     const conversation = recent.map(turn => `${turn.channel === 'them' ? 'Them' : 'You'}: ${turn.text}`).join('\n');
     const interimText = pending.map(turn => `${turn.channel === 'them' ? 'Them' : 'You'} (not yet final): ${turn.text}`).join('\n');
     let fresh = null;
@@ -85,15 +86,17 @@ class AssistSession {
     for (const shot of [...this.manual, this.anchor, this.current].filter(Boolean)) {
       if (!images.some(image => image.hash === shot.hash)) images.push(shot);
     }
-    const imageLegend = images.map((image, index) => `Image ${index + 1}: ${image.kind} screen, captured ${new Date(image.ts).toISOString()}`).join('\n');
+    const attachedImages = includeImages ? images : [];
+    const imageLegend = attachedImages.map((image, index) => `Image ${index + 1}: ${image.kind} screen, captured ${new Date(image.ts).toISOString()}`).join('\n');
     const prompt = 'Recent conversation:\n' + (conversation || '(none)') +
       (interimText ? '\n\nLatest speech still being finalized (may be revised):\n' + interimText : '') +
       '\n\nLatest spoken question:\n' + (latestQuestion || '(use the visible problem and conversation)') +
       '\n\nScreenshots in attachment order:\n' + (imageLegend || '(none available)') +
       '\n\nUse the conversation, attached code/screens, and previous Assist exchanges together. Resolve follow-up references using this problem context. ' +
-      'Answer the latest question directly; explain and show corrected code when requested. If necessary context is missing, say what is missing rather than inventing it.';
+      'Answer the latest interviewer question directly. Candidate speech and earlier answers are background, not requests to continue an old answer. ' +
+      'Switch to the latest question when the topic changes; explain and show corrected code when requested. If necessary context is missing, say what is missing rather than inventing it.';
     return {
-      prompt, latestQuestion, finalized: recent, pending, images, duplicateSkipped,
+      prompt, latestQuestion, finalized: recent, pending, images: attachedImages, duplicateSkipped,
       freshCaptured: !!fresh, revision: this.revision,
       turns: [...this.history.flatMap(turn => [
         { role: 'user', text: turn.question }, { role: 'assistant', text: turn.answer }
@@ -143,6 +146,9 @@ async function settleTranscription(sources, options = {}) {
   let signature = pendingSignature(active);
   let lastProgressAt = began;
   while (Date.now() < deadline) {
+    if (settings.ready?.()) {
+      return { settled: false, usable: true, pending: true, timedOut: false, stalled: false, waitedMs: Date.now() - began };
+    }
     await new Promise(resolve => setTimeout(resolve, Math.min(pollMs, Math.max(1, deadline - Date.now()))));
     if (!hasPending(active)) {
       return { settled: true, pending: false, timedOut: false, stalled: false, waitedMs: Date.now() - began };

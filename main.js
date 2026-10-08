@@ -11,12 +11,18 @@ const { MODES } = require('./src/prompts');
 const { createStreamingSTT } = require('./src/stt-streaming');
 const { AdaptiveVAD, AudioRingBuffer } = require('./src/vad');
 const { buildInterviewContext, detectCategory } = require('./src/interview-context');
+const { currentInterviewTurns } = require('./src/interview-turns');
+const { useSpokenModel, interviewerSources, questionKey, questionReadiness } = require('./src/latency-policy');
 const { startAppLink, stopAppLink, recordEvent, appLinkConsentState, revokeAppLinkCaller } = require('./src/applink');
 const { AssistSession, settleTranscription } = require('./src/assist-session');
 const { findResidualEcho } = require('./src/echo-suppressor');
 const { BatchTranscriber } = require('./src/batch-transcriber');
 const { createDiagnostics } = require('./src/diagnostics');
 const { ACTIONS, DEFAULTS: DEFAULT_SHORTCUTS, resolveShortcuts, validate: validateShortcuts, ShortcutManager } = require('./src/shortcuts');
+const { canonical } = require('./src/shortcuts');
+const { ModifierShortcut } = require('./src/modifier-shortcut');
+const { featureSettings } = require('./src/feature-settings');
+let modifierShortcut = null;
 const { MIN_WIDTH, MIN_HEIGHT, fitBounds, moveBounds, resizeBounds } = require('./src/window-geometry');
 const { WindowsWindowMover } = require('./src/windows-window-mover');
 let windowMover = null;
@@ -67,6 +73,7 @@ const MAX_TRANSCRIPT_TURNS = 200; // ~30–40 minutes of conversation at normal 
 let transcriptSequence = 0;
 const currentInterims = new Map();
 const assistSession = new AssistSession();
+let lastAnsweredQuestionKey = '';
 let batchTranscriber = null;
 const diagnostics = createDiagnostics({
   enabled: !app.isPackaged && process.env.VEYRA_DIAGNOSTICS === '1',
@@ -79,8 +86,8 @@ const STREAM_INACTIVITY_MS = 25000; // abort a stalled LLM stream so state.busy 
 // the transcript already on hand is the best available one and Assist proceeds
 // with it instead of refusing the request (the behaviour that made a single
 // immediate click fail).
-const ASSIST_SETTLE_TIMEOUT_MS = 8000;
-const ASSIST_SETTLE_STALL_MS = 1200;
+const ASSIST_SETTLE_TIMEOUT_MS = 3000;
+const ASSIST_SETTLE_STALL_MS = 600;
 let whisperModelManager = null;
 let localWhisperTranscriber = null;
 let activeWhisperModelId = null;
@@ -225,7 +232,11 @@ function publishTranscript(channel, text, meta = {}) {
 
 function publishInterim(channel, text, meta = {}) {
   const key = `${channel}:${meta.itemId || 'current'}`;
-  if (text) currentInterims.set(key, { channel, text, itemId: meta.itemId, revision: currentInterims.get(key)?.revision ?? assistSession.revision });
+  const previous = currentInterims.get(key);
+  if (text) currentInterims.set(key, { channel, text, itemId: meta.itemId,
+    updatedAt: previous?.text === text ? previous.updatedAt : Date.now(),
+    startedAt: currentInterims.get(key)?.startedAt ?? meta.startedAt ?? Date.now(),
+    revision: currentInterims.get(key)?.revision ?? assistSession.revision });
   else currentInterims.delete(key);
   send('stt:interim', { channel, text, itemId: meta.itemId });
   diagnostics.log('STT INTERIM', { channel, text, itemId: meta.itemId });
@@ -591,11 +602,16 @@ async function runFeature(mode, userText) {
   const def = MODES[mode];
   if (!def) return;
   state.busy = true;
+  const clickedAt = Date.now();
+  let firstTokenAt = null;
+  let transcriptionWaitMs = 0;
   let streamSettled = false; // drop stray tokens from a stream we've already abandoned
   const requestRevision = assistSession.revision;
   try {
-    const settings = store.getSettings();
-    const llm = createLLM(settings);
+    const settings = featureSettings(store.getSettings(), mode);
+    let llm = createLLM(settings, { lowLatency: mode === 'assist' });
+    const getCurrentTurns = () => currentInterviewTurns(transcript, [...currentInterims.values()], {
+      afterSequence: assistSession.afterSequence, revision: assistSession.revision });
     const userBubble = def.userBubble !== null
       ? def.userBubble
       : (mode === 'ask' ? userText : mode === 'answerThis' ? `"${(userText || '').slice(0, 60)}${userText && userText.length > 60 ? '…' : ''}"` : null);
@@ -608,6 +624,13 @@ async function runFeature(mode, userText) {
       return;
     }
 
+    // Capture the screen while pending speech is finalized, rather than adding
+    // the two waits. Resolve failures as data so early returns cannot leave a rejection.
+    const captureEarly = mode === 'assist' && def.needsScreen &&
+      !(useSpokenModel(mode, detectCategory(getCurrentTurns())) && !assistSession.manual.length);
+    const prefetchedScreen = captureEarly
+      ? captureScreenshot().then(image => ({ image }), error => ({ error })) : null;
+
     // Assist is a queued operation, not a snapshot. Clicking the instant the
     // interviewer stops used to abort with "still being transcribed": the local
     // silence detector commits the turn at ~450 ms, but the provider's
@@ -616,8 +639,8 @@ async function runFeature(mode, userText) {
     // lands, and the prompt is built afterwards so it can never carry stale
     // context. A provider that stops making progress for ASSIST_SETTLE_STALL_MS
     // is treated as stalled and Assist proceeds with what accumulated.
-    if (mode === 'assist') {
-      const sources = [localWhisperTranscriber, batchTranscriber, ...Object.values(streamingSTT)].filter(Boolean);
+    if (mode === 'assist' || mode === 'say') {
+      const sources = interviewerSources({ local: localWhisperTranscriber, batch: batchTranscriber, streaming: streamingSTT });
       const pendingAtClick = sources.some(source => source.hasPending?.());
       diagnostics.log('ASSIST CLICKED', {
         sttPending: pendingAtClick,
@@ -625,7 +648,19 @@ async function runFeature(mode, userText) {
       });
       if (pendingAtClick) {
         diagnostics.log('ASSIST WAITING FOR FINALIZATION', { sources: sources.length, timeoutMs: ASSIST_SETTLE_TIMEOUT_MS, stallMs: ASSIST_SETTLE_STALL_MS });
-        const settle = await settleTranscription(sources, { timeoutMs: ASSIST_SETTLE_TIMEOUT_MS, stallMs: ASSIST_SETTLE_STALL_MS });
+        const settle = await settleTranscription(sources, {
+          timeoutMs: ASSIST_SETTLE_TIMEOUT_MS,
+          // Batch transcription has no partial text: give the new question time
+          // to arrive instead of falling back to an already answered question.
+          stallMs: questionKey(getCurrentTurns().filter(turn => turn.channel === 'them').at(-1)) === lastAnsweredQuestionKey ? 0 : ASSIST_SETTLE_STALL_MS,
+          ready: questionReadiness(getCurrentTurns, lastAnsweredQuestionKey, 180, Date.now, true),
+        });
+        transcriptionWaitMs = settle.waitedMs;
+        if (mode === 'say' && !settle.settled &&
+            questionKey(getCurrentTurns().filter(turn => turn.channel === 'them').at(-1)) === lastAnsweredQuestionKey) {
+          send('llm:error', { message: 'The new interviewer question is still being transcribed. Please try again in a moment.' });
+          return;
+        }
         if (settle.settled) {
           diagnostics.log('ASSIST FINAL TRANSCRIPT RECEIVED', { waitedMs: settle.waitedMs, finals: transcript.length });
         } else {
@@ -646,9 +681,15 @@ async function runFeature(mode, userText) {
     }
 
     let imageDataUrl = null;
-    if (def.needsScreen) {
+    const currentCategory = detectCategory(getCurrentTurns());
+    const currentQuestion = getCurrentTurns().filter(turn => turn.channel === 'them').at(-1)?.text || '';
+    const spokenRequest = useSpokenModel(mode, currentCategory, currentQuestion);
+    const screenRequired = def.needsScreen && !(spokenRequest && !assistSession.manual.length);
+    if (screenRequired) {
       try {
-        imageDataUrl = await captureScreenshot();
+        const capture = prefetchedScreen ? await prefetchedScreen : { image: await captureScreenshot() };
+        if (capture.error) throw capture.error;
+        imageDataUrl = capture.image;
         if (!imageDataUrl) throw new Error('No screen source was available.');
       }
       catch (e) {
@@ -663,17 +704,24 @@ async function runFeature(mode, userText) {
       }
     }
 
-    const settingsForPrompt = store.getSettings();
-    const promptTranscript = mode === 'assist' ? transcript.filter(turn => turn.seq > assistSession.afterSequence && turn.contextRevision === assistSession.revision) : transcript;
+    const settingsForPrompt = featureSettings(store.getSettings(), mode);
+    const promptTranscript = mode === 'assist' || mode === 'say'
+      ? getCurrentTurns()
+      : transcript;
+    llm = createLLM(settingsForPrompt, { lowLatency: mode === 'assist', spoken: useSpokenModel(mode, detectCategory(promptTranscript),
+      promptTranscript.filter(turn => turn.channel === 'them').at(-1)?.text || '') });
     const contextBlock = buildInterviewContext(settingsForPrompt, mode, promptTranscript);
     const system = def.buildSystem ? def.buildSystem(contextBlock, settingsForPrompt.aiRules || '') : (def.system || '');
     if (mode === 'assist' && requestRevision !== assistSession.revision) return;
     const assistContext = mode === 'assist' ? assistSession.build({
-      transcript, interims: [...currentInterims.values()].filter(turn => turn.revision === assistSession.revision), freshDataUrl: imageDataUrl
+      transcript, interims: [...currentInterims.values()].filter(turn => turn.revision === assistSession.revision), freshDataUrl: imageDataUrl,
+      includeImages: screenRequired || assistSession.manual.length > 0,
     }) : null;
-    const built = assistContext ? assistContext.prompt : def.build({ transcript, userText: userText || '' });
+    const built = assistContext ? assistContext.prompt : def.build({ transcript: promptTranscript, userText: userText || '' });
     const turns = assistContext ? assistContext.turns : [{ role: 'user', text: built }];
-    const imageDataUrls = assistContext ? assistContext.images.map(image => image.dataUrl) : (imageDataUrl ? [imageDataUrl] : []);
+    const imageDataUrls = assistContext
+      ? assistContext.images.map(image => image.dataUrl)
+      : (imageDataUrl ? [imageDataUrl] : []);
     if (assistContext) {
       diagnostics.log('ASSIST CONTEXT', { system, turns });
       diagnostics.log('ASSIST TRANSCRIPT CONTEXT', { finalized: assistContext.finalized, interim: assistContext.pending, latestQuestion: assistContext.latestQuestion });
@@ -710,11 +758,16 @@ async function runFeature(mode, userText) {
           system,
           turns,
           imageDataUrls,
-          onToken: (t) => { if (streamSettled || (mode === 'assist' && requestRevision !== assistSession.revision)) return; rearm(); send('llm:token', { text: t }); }
+          onToken: (t) => { if (streamSettled || (mode === 'assist' && requestRevision !== assistSession.revision)) return; firstTokenAt ??= Date.now(); rearm(); send('llm:token', { text: t }); }
         }),
         stalled
       ]);
       if (assistContext) { assistSession.remember(assistContext, answer); send('assist:context', assistSession.status()); }
+      if (mode === 'say' || mode === 'assist') lastAnsweredQuestionKey = questionKey(promptTranscript.filter(turn => turn.channel === 'them').at(-1));
+      recordEvent({ level: 'info', event: 'answer_latency', msg: 'Answer completed', context: {
+        mode, provider: llm.provider, model: llm.model, transcriptionWaitMs,
+        firstTokenMs: firstTokenAt == null ? null : firstTokenAt - clickedAt, totalMs: Date.now() - clickedAt,
+      } });
       diagnostics.log('ASSIST REQUEST SUCCESS', { mode, provider: llm.provider, model: llm.model });
     } finally {
       streamSettled = true;
@@ -827,6 +880,7 @@ ipcMain.handle('transcript:clear', () => {
   transcript.splice(0, transcript.length);
   currentInterims.clear();
   assistSession.clear(transcriptSequence);
+  lastAnsweredQuestionKey = '';
   send('assist:context', assistSession.status());
   return { ok: true };
 });
@@ -909,10 +963,26 @@ function registerShortcuts() {
     listening: () => send('shortcut:action', 'listening'), screen: () => send('shortcut:action', 'screen'),
     forceAnswer: () => send('shortcut:action', 'forceAnswer'), settings: () => { win?.show(); win?.focus(); send('shortcut:action', 'settings'); },
     moveUp: () => moveWindow('up'), moveDown: () => moveWindow('down'),
-    moveLeft: () => moveWindow('left'), moveRight: () => moveWindow('right')
+    moveLeft: () => moveWindow('left'), moveRight: () => moveWindow('right'),
+    scrollUp: () => send('shortcut:action', 'scrollUp'), scrollDown: () => send('shortcut:action', 'scrollDown'),
+    scrollLeft: () => send('shortcut:action', 'scrollLeft'), scrollRight: () => send('shortcut:action', 'scrollRight')
   };
-  shortcutManager = new ShortcutManager(globalShortcut, actions);
-  const requested = resolveShortcuts(store.getSettings().shortcuts);
+  if (isWindows) modifierShortcut = new ModifierShortcut({ isPackaged: app.isPackaged && !process.defaultApp,
+    resourcesPath: process.resourcesPath, appPath: __dirname,
+    onFailure: () => { shortcutState.say = false; send('shortcuts:changed', shortcutOverview()); } });
+  const shortcutApi = {
+    unregisterAll() { globalShortcut.unregisterAll(); modifierShortcut?.unregister(); },
+    register(accelerator, callback) {
+      if (canonical(accelerator, 'win32') === 'ctrl+shift') return modifierShortcut?.register(callback) || false;
+      return globalShortcut.register(accelerator, callback);
+    }
+  };
+  shortcutManager = new ShortcutManager(shortcutApi, actions);
+  const overrides = { ...store.getSettings().shortcuts };
+  if (overrides.say && canonical(overrides.say, 'win32') === 'ctrl+shift+return') {
+    overrides.say = DEFAULT_SHORTCUTS.say; store.setSettings({ shortcuts: overrides });
+  }
+  const requested = resolveShortcuts(overrides);
   shortcutManager.register(validateShortcuts(requested) ? resolveShortcuts() : requested);
   Object.assign(shortcutState, shortcutManager.status);
   for (const [name, wasRegistered] of Object.entries(shortcutState)) {
@@ -929,6 +999,7 @@ function shortcutOverview() {
 function suspendShortcutRecording(active) {
   clearTimeout(shortcutRecordTimer);
   globalShortcut.setSuspended?.(active);
+  if (modifierShortcut) modifierShortcut.suspended = active;
   if (active) shortcutRecordTimer = setTimeout(() => suspendShortcutRecording(false), 30000);
 }
 function saveWindowGeometry() {
@@ -1092,6 +1163,7 @@ app.whenReady().then(async () => {
 });
 
 app.on('will-quit', () => {
+  modifierShortcut?.dispose();
   windowMover?.dispose();
   clearTimeout(shortcutRecordTimer);
   globalShortcut.unregisterAll();

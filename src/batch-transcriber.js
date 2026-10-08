@@ -4,6 +4,7 @@ const { UtteranceSegmenter } = require('./utterance-segmenter');
 class BatchTranscriber {
   constructor({ transcribe, onTranscript, onError = () => {}, onSpeechState = () => {} }) {
     this.pending = 0;
+    this.pendingByChannel = { you: 0, them: 0 };
     this.closed = false;
     this.tails = { you: Promise.resolve(), them: Promise.resolve() };
     this.segmenters = new Map(['you', 'them'].map(channel => [channel, new UtteranceSegmenter({
@@ -14,18 +15,22 @@ class BatchTranscriber {
         if (this.closed) return;
         if (this.pending >= 8) { onError(new Error('Transcription is falling behind; an audio segment was skipped.')); return; }
         this.pending += 1;
+        this.pendingByChannel[source] += 1;
         const startedAt = Date.now();
         this.tails[source] = this.tails[source].then(async () => {
           if (this.closed) return;
           const text = await transcribe(pcm);
           if (!this.closed && text) onTranscript(source, text, { startedAt });
-        }).catch(onError).finally(() => { this.pending -= 1; });
+        }).catch(onError).finally(() => { this.pending -= 1; this.pendingByChannel[source] -= 1; });
       }
     })]));
   }
   push(channel, pcm) { if (!this.closed) this.segmenters.get(channel)?.push(pcm); }
-  requestFinalize() { for (const segmenter of this.segmenters.values()) segmenter.flush(); }
-  hasPending() { return this.pending > 0 || [...this.segmenters.values()].some(segmenter => segmenter.collecting); }
+  requestFinalize(channel) { for (const [key, segmenter] of this.segmenters) if (!channel || key === channel) segmenter.flush(); }
+  hasPending(channel) {
+    if (channel) return this.pendingByChannel[channel] > 0 || !!this.segmenters.get(channel)?.collecting;
+    return this.pending > 0 || [...this.segmenters.values()].some(segmenter => segmenter.collecting);
+  }
   stop() { this.closed = true; for (const segmenter of this.segmenters.values()) segmenter.reset(); }
 }
 module.exports = { BatchTranscriber };

@@ -919,7 +919,10 @@
     const fast = m.fast || 'fast model';
     const smart = m.smart || 'smart model';
     const btn = document.getElementById('smart-toggle');
-    if (btn) btn.title = 'Fast: ' + fast + ' · Smart: ' + smart + ' (higher quality, ~2× slower)';
+    if (btn) btn.title = 'Fast: ' + fast + (settings.provider === 'openai' && fast === 'gpt-6.1-sol' ? ' · Spoken: ' + (m.spoken || 'gpt-6-luna') : '') + ' · Smart: ' + smart;
+    $('#spoken-model-field').style.display = settings.provider === 'openai' ? '' : 'none';
+    $('#spoken-model-note').style.display = settings.provider === 'openai' ? '' : 'none';
+    $('#model-spoken').value = settings.models.openai?.spoken || 'gpt-6-luna';
   }
 
   // ---- microphone permission banner --------------------------------------
@@ -1293,6 +1296,7 @@
     if (!settings.models[settings.provider]) settings.models[settings.provider] = {};
     settings.models[settings.provider].fast = $('#model-fast').value.trim();
     settings.models[settings.provider].smart = $('#model-smart').value.trim();
+    if (settings.provider === 'openai') settings.models.openai.spoken = $('#model-spoken').value.trim();
     // Transcription
     if (!settings.localWhisper) settings.localWhisper = {};
     settings.localWhisper.modelId = $('#whisper-model').value || settings.localWhisper.modelId || 'base.en';

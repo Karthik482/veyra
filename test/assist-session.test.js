@@ -35,6 +35,16 @@ test('follow-ups retain original code, original question, previous solution and 
   assert.equal(fallback.images.length, 2);
 });
 
+test('spoken requests omit stored screenshots and legends without losing later coding context', () => {
+  const session = new AssistSession();
+  session.addScreenshot(image('code'));
+  const spoken = session.build({ transcript: [turn(1, 'Tell me about yourself.')], includeImages: false });
+  assert.equal(spoken.images.length, 0);
+  assert.match(spoken.prompt, /Screenshots in attachment order:\n\(none available\)/);
+  const coding = session.build({ transcript: [turn(2, 'Explain this code.')] });
+  assert.equal(coding.images.length, 1);
+});
+
 test('history limits preserve only fourteen recent finalized entries and three Assist exchanges', () => {
   const session = new AssistSession();
   const transcript = Array.from({ length: 40 }, (_, i) => turn(i + 1, `utterance ${i + 1}`));
@@ -58,7 +68,8 @@ test('clear excludes prior problem transcript, images and late Assist results', 
   const next = session.build({ transcript: [turn(1, 'old problem'), turn(2, 'new problem')] });
   assert.equal(next.images.length, 0);
   assert.equal(next.turns.length, 1);
-  assert.doesNotMatch(next.prompt, /old problem|old answer/);
+  assert.doesNotMatch(next.prompt, /old problem/);
+  assert.equal(session.history.length, 0, 'previous answers must be cleared');
   assert.match(next.prompt, /new problem/);
 });
 

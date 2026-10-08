@@ -11,6 +11,41 @@
 
   function init({ veyra, actions }) {
     const $ = selector => document.querySelector(selector);
+    let hovered = null;
+    document.addEventListener('mousemove', event => { hovered = event.target; });
+    function scrollContent(direction) {
+      const horizontal = direction === 'left' || direction === 'right';
+      const canScroll = el => {
+        if (!el?.getClientRects().length) return false;
+        const style = getComputedStyle(el);
+        return /auto|scroll|overlay/.test(horizontal ? style.overflowX : style.overflowY) &&
+          (horizontal ? el.scrollWidth > el.clientWidth + 1 : el.scrollHeight > el.clientHeight + 1);
+      };
+      const scrim = $('#settings-scrim');
+      let root = scrim && !scrim.classList.contains('hidden') ? scrim : $('#panel');
+      const sidebar = $('#transcript-sidebar');
+      if (root === $('#panel') && sidebar && !sidebar.classList.contains('hidden') && sidebar.contains(hovered)) root = sidebar;
+      if (!root?.getClientRects().length) return;
+      let target = root.contains(hovered) ? hovered : null;
+      while (target && target !== root && !canScroll(target)) target = target.parentElement;
+      if (!canScroll(target)) target = null;
+      if (!target) {
+        const preferred = root === scrim ? root.querySelector('.s-tab-pane:not(.hidden)') : root.querySelector('#messages');
+        if (!horizontal && canScroll(preferred)) target = preferred;
+        if (!target) {
+          const bounds = (preferred || root).getBoundingClientRect();
+          const candidates = [...root.querySelectorAll(horizontal ? 'pre, textarea, .s-tab-pane, #messages' : '.s-tab-pane, .ts-list, #shortcut-list, textarea, #messages')]
+            .filter(el => { const r = el.getBoundingClientRect(); return canScroll(el) && r.bottom > bounds.top && r.top < bounds.bottom; });
+          target = candidates.at(-1) || (canScroll(root) ? root : null);
+        }
+      }
+      if (target) {
+        const step = Math.max(80, Math.min(240, (horizontal ? target.clientWidth : target.clientHeight) * 0.65));
+        const amount = direction === 'up' || direction === 'left' ? -step : step;
+        target.scrollBy({ left: horizontal ? amount : 0, top: horizontal ? 0 : amount, behavior: 'instant' });
+      }
+    }
+    for (const direction of ['up', 'down', 'left', 'right']) actions['scroll' + direction[0].toUpperCase() + direction.slice(1)] = () => scrollContent(direction);
     let overview = null, draft = {}, recording = null, recordTimer = null, resizing = null;
     const format = value => (value || 'Disabled').replace(/CommandOrControl|CmdOrCtrl/g,
       veyra.platform === 'darwin' ? 'Cmd' : 'Ctrl').replace(/Control/g, 'Ctrl').replace(/Super/g,

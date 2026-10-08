@@ -51,7 +51,7 @@ const DEFAULTS = {
   windowHeight: 600,
   shortcuts: {},
   models: {
-    openai: { fast: 'gpt-4o-mini', smart: 'gpt-4o' },
+    openai: { fast: 'gpt-6.1-sol', smart: 'gpt-6.1-sol', spoken: 'gpt-6-luna' },
     anthropic: { fast: 'claude-3-5-haiku-latest', smart: 'claude-3-5-sonnet-latest' },
     // Kept in sync with CURRENT_GEMINI_DEFAULT in src/llm.js — gemini-2.0-flash
     // (the previous default here) was retired by Google on 2026-03-03 and 404s
@@ -87,7 +87,11 @@ function load() {
   if (data) return data;
   try { data = deepMerge(DEFAULTS, JSON.parse(fs.readFileSync(FILE, 'utf8'))); }
   catch { data = deepMerge(DEFAULTS, {}); }
-
+  for (const tier of ['fast', 'smart']) {
+    if (['gpt-4o-mini', 'gpt-4o'].includes(data.models.openai[tier])) {
+      data.models.openai[tier] = DEFAULTS.models.openai[tier];
+    }
+  }
 
   return data;
 }
