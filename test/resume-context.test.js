@@ -85,6 +85,42 @@ const fullSettings = {
   questionsToAsk: '1. What does success look like in 90 days?'
 };
 
+test('job requirements after a long company introduction are selected for the current question', () => {
+  const { selectJobDescription } = require('../src/interview-context');
+  const jd = 'About Example Motors\n' + 'We value adventure and build exciting products. '.repeat(90) +
+    '\nRole Summary\nWe are seeking a Senior Analytics Engineer for the People Systems team.\nResponsibilities\n' +
+    'Model workforce history using effective dates and stable employee identifiers.\n' +
+    'Partner with HR and Finance on headcount definitions and dashboard reconciliation.\n' +
+    'Build tested dbt pipelines and govern data quality.\nQualifications\nAdvanced SQL and Python for warehouse automation.';
+  const selected = selectJobDescription(jd, 'How would you reconcile headcount with Finance?', 1800);
+  assert.ok(selected.length <= 1800);
+  assert.match(selected, /Senior Analytics Engineer/);
+  assert.match(selected, /People Systems/);
+  assert.match(selected, /headcount definitions and dashboard reconciliation/);
+  assert.match(selected, /Advanced SQL and Python/);
+  assert.ok(!selected.includes('adventure'), 'company marketing should not displace requirements');
+});
+
+test('short and single-paragraph job descriptions retain role and question-relevant requirements', () => {
+  const { selectJobDescription } = require('../src/interview-context');
+  assert.equal(selectJobDescription('Senior Backend Engineer, Python, distributed systems'), 'Senior Backend Engineer, Python, distributed systems');
+  const jd = 'We make excellent products. '.repeat(100) + 'We are seeking a Senior Analytics Engineer. Responsibilities include backdated corrections using effective dates in dbt and data-quality tests.';
+  const selected = selectJobDescription(jd, 'How would you handle backdated corrections?', 900);
+  assert.ok(selected.length <= 900);
+  assert.match(selected, /Senior Analytics Engineer/);
+  assert.match(selected, /backdated corrections/);
+});
+
+test('missing behavioral story allows a labeled worked scenario without altering saved background', () => {
+  const settings = { resumeText: 'ExampleCo: engineer working on workforce pipelines.', jobDescription: 'Senior Analytics Engineer supporting HR reporting.', starStories: '' };
+  const before = JSON.stringify(settings);
+  const context = buildInterviewContext(settings, 'say', [{ channel: 'them', text: 'Tell me about a time a stakeholder disagreed with your metric.' }]);
+  assert.match(context, /Illustrative scenario to adapt/);
+  assert.match(context, /implementation checks/);
+  assert.match(context, /requirements, not candidate experience/);
+  assert.equal(JSON.stringify(settings), before);
+});
+
 test('buildInterviewContext: behavioral injects STAR stories', () => {
   const ctx = buildInterviewContext(fullSettings, 'say',
     [{ channel: 'them', text: 'Tell me about a time you faced a major outage.' }]);

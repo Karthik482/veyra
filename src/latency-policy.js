@@ -3,6 +3,9 @@ function useSpokenModel(mode, category, question = '') {
   if (mode === 'say') {
     // Fast spoken answers, with conservative exclusions for hard technical work.
     if (/\b(code|coding|program|implement|algorithm|complexity|sql|query|queries|design|architecture|architect|scale|scaling|trade.?offs?|debug|optimi[sz]e|distributed|concurrency|data structure|pseudocode|calculate|prove)\b/i.test(question)) return false;
+    // "How did you handle ..." is often classified as behavioral even when
+    // the interviewer is probing temporal modeling and concrete implementation.
+    if (/\b(backdat(?:ed|ing)|late.arriv(?:ing|al)|backfills?|effective.dates?|snapshot strateg(?:y|ies)|timestamp (?:or|vs\.?) check|scd(?: type)? [12])\b/i.test(question)) return false;
     if (category === 'general') return true;
     if (category === 'technical' && /^(?:can you |could you |please )?(?:what (?:is|are)|explain|define|what does|difference between)\b/i.test(question.trim())) return true;
   }

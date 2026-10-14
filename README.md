@@ -21,6 +21,8 @@ Open **Settings** to choose an AI provider and enter your own API key. Supported
 - **What should I say?** always uses Fast routing: conversational questions and simple definitions use Spoken; coding and complex technical questions keep the stronger Fast model. It reuses partial-transcript stability measured before the hotkey rather than starting an additional wait.
 - **What should I say?**, **Follow-up questions**, and **Recap** use conversation context.
 - Spoken interview answers match the question's depth: simple questions stay brief; complex technical, behavioral, design, and experience questions receive a developed explanation with relevant examples and trade-offs, without a fixed sentence cap. Your AI Style rules still control tone and length.
+- Interview answers develop concrete implementations and worked examples instead of paraphrasing resume bullets. When a full personal story is unavailable, a practice scenario is labeled "Illustrative scenario to adapt"; follow-ups deepen the same example. Job context selects relevant responsibilities and qualifications from across the job description rather than only its opening company introduction.
+- Detailed spoken follow-ups about backdated corrections, late-arriving data, effective dates, snapshots, or SCD history use the stronger Fast model even when phrased as behavioral questions.
 - **Smart** chooses the configured higher-capability model.
 - With OpenAI and Smart off, spoken interview questions use the **Spoken** model (GPT-6 Luna by default). Coding and technical reasoning use **Fast** (GPT-6.1 Sol by default). Smart uses the configured Smart model for all questions.
 - **View conversation** shows the transcript.

@@ -98,10 +98,13 @@ test('asks separately, and differently, for control', () => {
 test('answers Iris over the link', async (t) => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'veyra-applink-'));
   const pathOptions = { homedir: home, env: { ...process.env, LOCALAPPDATA: path.join(home, 'Local') } };
+  // Windows named pipes ignore the temporary profile directory. Keep this
+  // test separate from the installed app and other concurrently running suites.
+  const appId = `com.veyra.test.${process.pid}`;
 
   let asked = 0;
   const link = new AppLinkServer({
-    appId: 'com.veyra.overlay',
+    appId,
     appSlug: 'veyra',
     appName: 'veyra',
     appVersion: '0.2.1',
@@ -114,7 +117,7 @@ test('answers Iris over the link', async (t) => {
 
   link.record({ level: 'error', event: 'stt_rejected', code: 'http_403', msg: 'no access to a speech model', frame: 'handleSttError' });
 
-  const found = AppLinkClient.discover(pathOptions).find((entry) => entry.appId === 'com.veyra.overlay');
+  const found = AppLinkClient.discover(pathOptions).find((entry) => entry.appId === appId);
   assert.ok(found, 'veyra did not announce itself');
 
   const client = await AppLinkClient.open(found, { client: { id: 'com.publikhq.iris', name: 'Iris' }, scopes: ['read'] });

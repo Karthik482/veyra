@@ -29,6 +29,16 @@ test('Say uses stability before the hotkey without skipping a changing or previo
   assert.equal(questionReadiness(() => [turn], questionKey(turn), 180, () => now, true)(), false);
 });
 
+test('implementation follow-ups use the stronger model even when classified as behavioral', () => {
+  for (const question of [
+    'How did you handle backdated corrections in practice?',
+    'Which dbt snapshot strategy did you use: timestamp or check?',
+    'How did you handle late-arriving changes and effective dates?',
+    'Did you use SCD Type 2 for employee history?',
+  ]) assert.equal(useSpokenModel('say', 'behavioral', question), false, question);
+  assert.equal(useSpokenModel('say', 'behavioral', 'Tell me about a time a stakeholder disagreed with your metric definition.'), true);
+});
+
 test('microphone-only pending work cannot delay answering an interviewer question', async () => {
   const flushed = [];
   const local = { hasPending: channel => channel === 'you', requestFinalize: channel => flushed.push(channel) };

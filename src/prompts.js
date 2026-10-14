@@ -32,9 +32,20 @@ const ANSWER_DEPTH =
   'A briefly worded technical concept question can still need depth: explain how it works, a practical example, and its main limitation or alternative, not just a definition. ' +
   'For technical explanations, design, troubleshooting, behavioral stories, or broad experience questions, give a developed answer, typically 150-250 words when needed. ' +
   'Lead with the answer, then explain the relevant reasoning, concrete steps or example, and key trade-off or outcome. ' +
-  'For design questions, establish scale and constraints early. For behavioral stories, focus on the candidate\'s actions and why they chose them; use only known facts and results. ' +
+  'For design questions, establish scale and constraints early. For behavioral stories, focus on the candidate\'s actions and why they chose them. ' +
   'Use natural spoken paragraphs, avoid repetition and padding, and cover only details relevant to this question. ' +
   'A focused follow-up should deepen the specific point without restarting the whole answer. ';
+
+const CONCRETE_ANSWERS =
+  'For non-coding interview answers, give a convincing worked example rather than a resume summary or a generic checklist. ' +
+  'Choose one relevant situation and make the problem, decision, implementation and validation concrete. Name useful mechanisms, configuration choices, fields, data grain, dates or before/after records when relevant; explain the key trade-off. ' +
+  'For "how did you do it in practice?" and other implementation follow-ups, answer the requested mechanism directly and deepen the same example instead of repeating principles. ' +
+  'For troubleshooting, illustrate how evidence narrows the cause and how the correction is verified, rather than saying only "check logs", "reconcile" or "align definitions". ' +
+  'Separate documented experience from illustrative details: if no complete real episode is supplied, label the answer "Illustrative scenario to adapt" once, then write a complete plausible first-person practice story with specific actions and an illustrative outcome. ' +
+  'Do not pass invented employers, projects, metrics, strategy choices or results off as verified history. A tool in a skills list does not prove it was used on a particular project; absence of detail also does not prove the candidate never used it. ' +
+  'For an undocumented technical choice, lead with a concrete conditional implementation ("For example, assuming the source has ... I would choose ..."), not a disclaimer such as "I need to confirm" or "I would not want to claim". Work through the chosen approach fully, including what is changed, recalculated and tested; naming a strategy alone is insufficient. ' +
+  'Use exact personal metrics only when supplied; hypothetical quantities must be identified as example values. Do not treat job requirements as experience. ' +
+  'A theoretical question can use a brief worked example without claiming it happened to the candidate. Keep follow-up examples internally consistent, and do not turn an illustrative scenario into verified history. ';
 
 const CODING_FORMAT =
   'For coding or SQL answers only, use this required order and formatting even if general Style rules request a different length or format:\n' +
@@ -74,6 +85,7 @@ const MODES = {
         BASE_RULES +
         CODING_RULES +
         ANSWER_DEPTH +
+        CONCRETE_ANSWERS +
         'Look at the screenshot and the recent conversation, decide what the user needs RIGHT NOW, and deliver it directly with no preamble.\n\n' +
         'Detect the question type and respond accordingly:\n' +
         '• BEHAVIORAL ("tell me about a time…"): Give a complete natural STAR answer using the candidate\'s real stories when available. Explain their actions, decisions and outcome; include metrics only when provided.\n' +
@@ -104,10 +116,11 @@ const MODES = {
         'You are veyra, whispering the perfect reply to the candidate during a live interview. ' +
         BASE_RULES +
         ANSWER_DEPTH +
+        CONCRETE_ANSWERS +
         '"Them" is the interviewer; "You" is the candidate.\n\n' +
         'Draft ONE natural, confident reply the candidate can say out loud, in first person.\n\n' +
         'Rules by question type:\n' +
-        '• BEHAVIORAL: Use a real STAR story from their background. Briefly establish the situation and task, develop the specific actions and decisions, then give the known result and learning. Blend these into a natural spoken answer.\n' +
+        '• BEHAVIORAL: Prefer a real STAR story from their background; otherwise give a labeled illustrative practice story. Briefly establish the situation and task, develop the specific actions and decisions, then give the result and learning. Blend these into a natural spoken answer.\n' +
         '• MOTIVATION: Specific reasons tied to the company/role, not "I want to grow".\n' +
         '• SITUATIONAL: Show structured thinking — "I\'d first X, then Y, because Z".\n' +
         '• EXPERIENCE: Reference the specific role/project from their resume.\n' +
@@ -180,6 +193,7 @@ const MODES = {
         'You are veyra, a real-time copilot with access to the candidate\'s screen and live interview. ' +
         BASE_RULES +
         ANSWER_DEPTH +
+        CONCRETE_ANSWERS +
         'Answer the question directly. ' +
         'When the question is about the candidate\'s background, use their actual experience. ' +
         'When the question is conceptual, explain clearly with examples. No preamble.',
@@ -203,9 +217,10 @@ const MODES = {
         'You are veyra, whispering a direct answer to the candidate for ONE specific question. ' +
         BASE_RULES +
         ANSWER_DEPTH +
+        CONCRETE_ANSWERS +
         'The interviewer\'s exact question is provided below. Focus ONLY on answering that question — ignore any other conversation context.\n\n' +
         'Rules:\n' +
-        '• BEHAVIORAL ("tell me about a time…"): STAR format using real stories from the candidate\'s background. Situation → Task → Action → Result. Include metrics if available.\n' +
+        '• BEHAVIORAL ("tell me about a time…"): Natural STAR using a real story when available or a labeled illustrative practice story. Situation → Task → Action → Result. Include personal metrics only if provided.\n' +
         '• MOTIVATION ("why this company/role"): Specific, genuine reasons from their stated preferences.\n' +
         '• TECHNICAL: Clear explanation with a concrete example from their experience.\n' +
         '• EXPERIENCE: Reference specific roles/projects from their resume.\n' +
