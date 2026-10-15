@@ -77,6 +77,23 @@ test('a reaction or result follow-up retains the previous episode and its practi
   assert.ok(executive.includes('ExampleCo Executive [ILLUSTRATIVE PRACTICE]'));
 });
 
+test('new project questions vary equally relevant examples while specific questions and follow-ups retain relevance', () => {
+  const mobility = '=== INTERVIEW STORY: ExampleCo identity transfers [CONFIRMED REAL] ===\nQuestions: technical project model identity transfers\nAction: linked person records across assignments.';
+  const recruiting = '=== INTERVIEW STORY: ExampleCo recruiting funnel [CONFIRMED REAL] ===\nQuestions: technical project model recruiting funnel\nAction: reconstructed application stages.';
+  const practice = '=== INTERVIEW STORY: ExampleCo practice [ILLUSTRATIVE PRACTICE] ===\nQuestions: technical project model\nAction: proposed an example.';
+  const stories = [mobility, recruiting, practice].join('\n\n');
+  const prior = [
+    { channel: 'them', text: 'Tell me about your identity transfers project.' },
+    { channel: 'you', text: 'I linked person records for identity transfers across assignments.' },
+  ];
+  const select = text => selectStoryContext(stories, text, 2000, [...prior, { channel: 'them', text }]);
+  assert.equal(select('Tell me about a technical project.'), recruiting);
+  assert.equal(select('Tell me about the identity transfers project.'), mobility);
+  assert.equal(select('Walk me through that model.'), mobility);
+  assert.equal(selectStoryContext(stories, 'Tell me about a technical project.'), mobility);
+  assert.equal(selectStoryContext([mobility, practice].join('\n\n'), 'Tell me about a technical project.', 2000, [...prior, { channel: 'them', text: 'Tell me about a technical project.' }]), mobility);
+});
+
 test('an explicit new story request takes precedence over a previous long episode', () => {
   const question = 'Tell me about a time your analysis influenced a leadership decision.';
   const selected = selectStoryContext(bank, question, 2000, [

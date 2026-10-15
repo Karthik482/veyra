@@ -29,8 +29,8 @@ function answerIntent(question = '') {
 function buildAnswerTask(question) {
   const intent = answerIntent(question);
   const tasks = {
-    story: 'Tell one past episode as a recollection, with a clear before-and-after result. Say what was happening, explain the important thing I did and why, and land what changed for the people using the work. Keep any framework invisible and omit details that do not help this question. Use a single illustrative label if the episode is missing. For an executive presentation, explain what the evidence showed and what the leader did with it. Name the business action rather than saying "better alignment".',
-    'project-walkthrough': 'Choose ONE specific project or model from the background, not a combined summary of the whole role. Name its business use, explain the data structure in plain terms (for example what one row represents), and walk through the tricky part and how HR or other users used the result. Keep the explanation connected and conversational, not a list of staging, identity resolution, effective dates, tests and governance. Include technical detail that answers the question. Do not tack on portfolio model counts or broader pipeline refresh metrics unless this exact project caused them. Use a documented episode; label missing project details illustrative.',
+    story: 'Tell one past episode as a recollection, with a clear before-and-after result. Explain the situation, my personal decision, the relevant conversation and what happened afterward. Show what I said or agreed with the other person using supported facts; do not invent dialogue or reactions. Keep any framework invisible and omit details that do not help this question. Use a single illustrative label if the episode is missing. For an executive presentation, explain what the evidence showed and what the leader did with it. Name the business action rather than saying "better alignment".',
+    'project-walkthrough': 'Choose ONE specific project or model that fits this question, not a combined summary of the whole role or the same default story. Name its business use, explain the relevant grain in plain terms (what one row represents), the difficult transformation and how I validated the output. Explain how HR or other users used the result. Keep the explanation connected and conversational, not a list of staging, identity resolution, effective dates, tests and governance. Include technical detail that answers the question. Do not tack on portfolio model counts or broader pipeline refresh metrics unless this exact project caused them. Use a documented episode; label missing project details illustrative.',
     'example-followup': 'This is a focused follow-up about the project just discussed. Stay with that same model and explain one concrete record, mismatch or situation, what I checked or changed, and what that fixed. Start with the specific issue, not the project introduction. Stop once that point is clear; expand if the question requests depth. Do not repeat career achievements, introduce a new project, or turn it into another full STAR answer. Preserve whether the earlier example was factual or illustrative.',
     case: 'Answer this hypothetical case with focused reasoning and a worked example if useful. Give a concrete recommendation, explaining who would act or how success would be checked when that helps the question. Do not end merely with "recommend a targeted action" or claim an unobserved improvement. Keep uncertainty proportional to the decision; do not force the same sequence or closing into every case.',
     communication: 'Show communication through one specific executive or stakeholder decision. Include the business question, the evidence or visual I would show, the recommendation, and the decision it enables. A past example should have a known outcome or be labeled illustrative. Avoid stopping at "tailor the message to the audience".',
@@ -235,16 +235,21 @@ function selectStoryContext(stories, question = '', limit = 2000, transcript = [
   };
   const directScores = cards.map(card => score(card, question));
   const intent = answerIntent(question);
-  const newEpisode = /\btell me about|\bdescribe (?:a|an)|\bgive (?:me |us )?(?:an? |one )example|\bwalk (?:me|us) through/i.test(question);
+  const sameEpisode = /\b(?:this|that|the same) (?:model|project|example|story|pipeline)\b/i.test(question);
+  const newEpisode = !sameEpisode && /\btell me about|\bdescribe (?:a|an)|\bgive (?:me |us )?(?:an? |one )example|\bwalk (?:me|us) through/i.test(question);
   const refersBack = /\b(?:they|them|that|this|the (?:leader|stakeholder|executive|decision|outcome|result|model|project)|after your (?:project|work|analysis|change))\b/i.test(question);
   const asksPriorMethod = /^\s*(?:(?:and|so)\s+)?(?:(?:what|which) (?:kind|type|sort) of (?:model|method|approach|algorithm)(?: did you (?:use|choose))?|(?:what|which) (?:model|method|approach|algorithm) did you (?:use|choose))(?: here| for (?:it|that|this))?\s*[?.!]*$/i.test(question);
   const followup = !newEpisode && (['reaction', 'example-followup'].includes(intent) || refersBack || asksPriorMethod || Math.max(...directScores) < 6);
   const latestReply = transcript.filter(turn => turn.channel === 'you').at(-1)?.text || '';
   const priorQuestion = transcript.filter(turn => turn.channel === 'them').at(-2)?.text || '';
+  // Use the prior exchange only to break a relevance tie on a new question.
+  // Focused follow-ups keep the existing context scores and factual status.
+  const priorScores = newEpisode && latestReply ? cards.map(card => score(card, priorQuestion) + score(card, latestReply.slice(0, 2500))) : [];
+  const recentIndex = priorScores.length && Math.max(...priorScores) > 0 ? priorScores.indexOf(Math.max(...priorScores)) : -1;
   const ranked = cards.map((card, index) => ({
-    card, index,
+    card, index, recentlyUsed: index === recentIndex,
     score: directScores[index] + (followup ? score(card, priorQuestion) + score(card, latestReply.slice(0, 2500)) : 0),
-  })).sort((a, b) => b.score - a.score || Number(/\[CONFIRMED REAL\]/.test(b.card)) - Number(/\[CONFIRMED REAL\]/.test(a.card)) || a.index - b.index);
+  })).sort((a, b) => b.score - a.score || Number(/\[CONFIRMED REAL\]/.test(b.card)) - Number(/\[CONFIRMED REAL\]/.test(a.card)) || Number(a.recentlyUsed) - Number(b.recentlyUsed) || a.index - b.index);
   // Keep one episode and its status/outcome together; legacy notes retain the old caps.
   const selected = ranked[0].card;
   if (selected.length <= 2000) return selected;
