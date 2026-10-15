@@ -82,6 +82,8 @@ test('stakeholder reactions and judgment questions use focused answer tasks', ()
   const { answerIntent } = require('../src/interview-context');
   const cases = [
     ['How did the stakeholder react to that pushback?', 'reaction', 'behavioral'],
+    ['What was the reaction from HR or leadership when you flagged those gaps?', 'reaction', 'behavioral'],
+    ['How did HR react when you showed the discrepancy?', 'reaction', 'behavioral'],
     ['Two executives quote different attrition numbers in the same meeting. What do you do right there in the room, and what do you do after?', 'executive-disagreement', 'situational'],
     ['How do you prioritize when multiple leaders say their request is urgent?', 'prioritization', 'situational'],
   ];
@@ -91,6 +93,21 @@ test('stakeholder reactions and judgment questions use focused answer tasks', ()
   }
   assert.equal(answerIntent('Tell me about a time you prioritized competing urgent requests.'), 'story');
   assert.equal(answerIntent('Tell me about a time two executives disagreed in a meeting.'), 'story');
+});
+
+test('ongoing metric alignment uses a brief judgment answer while past stories and detailed implementation retain their paths', () => {
+  const { answerIntent } = require('../src/interview-context');
+  const { useSpokenModel } = require('../src/latency-policy');
+  for (const question of ['How do you make sure HR and Finance stay aligned on metric definitions over time?', 'How do you maintain consistent metric definitions with stakeholders?']) {
+    assert.equal(answerIntent(question), 'metric-alignment');
+    const category = detectCategory([{ channel: 'them', text: question }]);
+    assert.equal(category, 'situational');
+    assert.equal(useSpokenModel('say', category, question), true);
+  }
+  assert.equal(answerIntent('Tell me about a time you aligned HR and Finance on metric definitions.'), 'story');
+  const detailed = 'How would you implement a shared metric definition in SQL to keep HR and Finance aligned?';
+  assert.notEqual(answerIntent(detailed), 'metric-alignment');
+  assert.equal(useSpokenModel('say', detectCategory([{ channel: 'them', text: detailed }]), detailed), false);
 });
 
 test('pushback story context prioritizes stakeholder interaction and the main-answer resolution', () => {

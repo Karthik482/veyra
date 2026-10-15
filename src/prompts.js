@@ -43,12 +43,18 @@ const SPOKEN_VOICE =
 const CONCRETE_ANSWERS =
   'For non-coding answers, distinguish a request for past experience from a hypothetical case. ' +
   'Past-experience answers must tell one specific episode: the problem, what I personally did and why, and what changed. Lead with the situation or result, not "I would first" or a general approach. ' +
+  'Show ownership through one actual correction or decision. Listing missing, duplicate and conflicting records and saying "I added checks" is not a specific episode. Explain the one mismatch, the change I made and how I checked that it fixed the issue; label missing episode details illustrative. ' +
   'Land the outcome in the main answer: say what people could decide or do afterward. A concrete qualitative result is enough; do not force a separate decision, follow-through and lesson into every answer. ' +
   'A resume is a source of facts, not a script. Choose one relevant episode rather than combining several projects. Do not append model counts, refresh improvements or other achievements unless they belong to that exact example and help answer this question. ' +
   'Hypothetical cases use conditional language. Give the recommendation and explain ownership or success checks when relevant to the question; do not invent a successful past outcome or append the same checklist to every case. ' +
   'For implementation follow-ups, choose a mechanism, show a concrete record/configuration example when useful, and explain what is rebuilt or tested. Do not stop at "I need to confirm". ' +
   'For requested past experience, prefer documented stories. If that episode or its essential details are missing, label it "Illustrative scenario to adapt" once, then tell a complete plausible practice story. Never pass invented history or metrics off as verified; skills and job requirements do not prove project experience. ' +
   'Use relevant details, not every possible check. Keep examples consistent across follow-ups and retain their illustrative status. ';
+
+const QUESTION_FIDELITY =
+  'Preserve the exact metric, requested direction, population and time window across the answer and follow-ups. A question about improved retention must not become increased attrition or another outcome. ' +
+  'Separate what the data shows from whether an intervention caused it. With missing evidence say "not established yet" rather than turning uncertainty into "no improvement" or a misleading yes/no. Never use "no" as shorthand for "causation is not proven", even when pressured for yes/no. If observed results are supplied, lead with the accurate trend, then state the attribution limit: for example, "Retention increased in these figures; whether the reorg caused that increase is not established." ' +
+  'Do not invent results or assume that three months is always insufficient; confidence depends on the available observations, comparison and assumptions. A comparison group does not automatically establish causation. ';
 
 const CODING_FORMAT =
   'For coding or SQL answers only, use this required order and formatting even if general Style rules request a different length or format:\n' +
@@ -89,6 +95,7 @@ const MODES = {
         CODING_RULES +
         ANSWER_DEPTH +
         CONCRETE_ANSWERS +
+        QUESTION_FIDELITY +
         'Look at the screenshot and the recent conversation, decide what the user needs RIGHT NOW, and deliver it directly with no preamble.\n\n' +
         'Detect the question type and respond accordingly:\n' +
         '• BEHAVIORAL ("tell me about a time…"): Give a complete natural STAR answer using the candidate\'s real stories when available. Explain their actions, decisions and outcome; include metrics only when provided.\n' +
@@ -120,6 +127,7 @@ const MODES = {
         BASE_RULES +
         ANSWER_DEPTH +
         CONCRETE_ANSWERS +
+        QUESTION_FIDELITY +
         SPOKEN_VOICE +
         '"Them" is the interviewer; "You" is the candidate.\n\n' +
         'Draft ONE natural, confident reply the candidate can say out loud, in first person.\n\n' +
@@ -143,6 +151,7 @@ const MODES = {
         '\n\nCURRENT INTERVIEWER QUESTION:\n' + (latest?.text || '(no interviewer question captured yet)') +
         '\n\nAnswer the current interviewer question directly. Do not continue or rewrite the candidate\'s previous response. ' +
         'If the interviewer interrupts, corrects or narrows the request, even within the same turn, answer that latest point immediately; do not finish an abandoned explanation. ' +
+        'For a follow-up, preserve the original question\'s metric and direction, not just the wording of the previous draft answer. ' +
         'Use earlier conversation only as context for an explicit follow-up. Write the actual words I should say.';
     }
   },
