@@ -25,6 +25,7 @@ Open **Settings** to choose an AI provider and enter your own API key. Supported
 - Detailed spoken follow-ups about backdated corrections, late-arriving data, effective dates, snapshots, or SCD history use the stronger Fast model even when phrased as behavioral questions.
 - Past-experience questions request one episode with personal decisions and a before-and-after outcome; hypothetical cases end with a concrete recommendation, owner and success measure. Executive-communication questions use a decision-focused example. Spoken phrasing avoids long checklists and stock closing lessons.
 - Pushback stories emphasize the stakeholder conversation, reaction and negotiated resolution. Executive disagreements cover calm meeting leadership and follow-through; prioritization uses a 45-60-second mini-case, while reaction follow-ups stay brief.
+- Data-quality stories explain the decision at risk, collaboration with the source owner, and the corrected outcome. Decision-recovery answers flag risk promptly and protect affected actions; broad privacy answers lead with least privilege, small-group suppression and one practical example. Standard stories aim near 60 seconds and expand when the question needs depth.
 - **Smart** chooses the configured higher-capability model.
 - With OpenAI and Smart off, spoken interview questions use the **Spoken** model (GPT-6 Luna by default). Coding and technical reasoning use **Fast** (GPT-6.1 Sol by default). Smart uses the configured Smart model for all questions.
 - **View conversation** shows the transcript.

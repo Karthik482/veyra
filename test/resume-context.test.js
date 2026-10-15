@@ -100,6 +100,37 @@ test('pushback story context prioritizes stakeholder interaction and the main-an
   assert.match(context, /reaction and resolution in the main story/);
 });
 
+test('people privacy and decision recovery get focused tasks without taking over past stories or implementation', () => {
+  const { answerIntent } = require('../src/interview-context');
+  const { useSpokenModel } = require('../src/latency-policy');
+  for (const [question, intent] of [
+    ['Say that quality issue slipped through and an exec made a call based on those numbers. What is your next move?', 'decision-recovery'],
+    ['A leader acted on incorrect data. What would you do?', 'decision-recovery'],
+    ['How do you think about privacy and access control when working with sensitive people data?', 'privacy'],
+    ['How do you protect sensitive employee data?', 'privacy'],
+  ]) {
+    assert.equal(answerIntent(question), intent, question);
+    const category = detectCategory([{ channel: 'them', text: question }]);
+    assert.equal(category, 'situational');
+    assert.equal(useSpokenModel('say', category, question), true);
+  }
+  assert.equal(answerIntent('Tell me about a time an executive acted on incorrect data.'), 'story');
+  assert.equal(answerIntent('Tell me about a time you protected sensitive people data.'), 'story');
+  for (const question of ['How would you implement row-level access control for sensitive people data in SQL?', 'Design a privacy model for workforce data in detail.', 'Write a SQL query to flag incorrect data before a decision.', 'Explain differential privacy.']) {
+    assert.ok(!['privacy', 'decision-recovery'].includes(answerIntent(question)), question);
+  }
+});
+
+test('quality story keeps source-owner collaboration and material outcome without fabricating severity', () => {
+  const story = 'At ExampleCo, I checked the employee roster with People Operations before publishing the corrected workforce dashboard.';
+  const context = buildInterviewContext({ resumeText: 'ExampleCo engineer', starStories: story }, 'say', [{ channel: 'them', text: 'Tell me about a time you caught a data quality issue that could have led to a bad business decision.' }]);
+  assert.ok(context.includes(story));
+  assert.match(context, /what they confirmed or corrected/);
+  assert.match(context, /potential bad decision from one that actually occurred/);
+  assert.match(context, /Do not.*invent a severity number/);
+  assert.match(context, /corrected output, the decision protected/);
+});
+
 test('executive story requests receive the stored episode and an outcome task', () => {
   const story = 'At ExampleCo, a COO needed to approve workforce planning. I compared the HR roster with Finance FTE totals, showed one reconciled chart and recommended separate definitions. The COO approved the corrected roster for planning.';
   const context = buildInterviewContext({ resumeText: 'ExampleCo engineer', starStories: story }, 'say', [{ channel: 'them', text: 'Describe a time you presented an analysis to an executive.' }]);

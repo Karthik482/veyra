@@ -6,9 +6,12 @@
 // ── Question category detection ───────────────────────────────────────────────
 function answerIntent(question = '') {
   const asksForStory = /\btell me about (?:a|an) (?:time|occasion|incident|project|presentation|decision|example)\b|\bdescribe (?:a|an) (?:time|occasion|situation|incident|project|presentation)\b|\bgive (?:me |us )?(?:a specific |an? )?example\b|\bhow (?:did|have) you\b|\bhave you ever\b/i.test(question);
+  const asksForImplementation = /\b(?:implement\w*|design\w*|configur\w*|sql|code|coding|query|queries|algorithm|debug\w*|in detail|deep dive|step.by.step)\b/i.test(question);
   if (/\bhow did (?:the |your )?(?:stakeholder|they|leader|HR partner).{0,24}(?:react|respond)\b|\bwhat was (?:their|the stakeholder[’']s) (?:initial )?reaction\b/i.test(question)) return 'reaction';
   if (!asksForStory && /\b(?:executives?|execs?|leaders?|CFO|COO|CEO|VP)\b/i.test(question) && /\b(?:different|conflicting|disagree|contradictory|inconsistent|mismatch)\b/i.test(question) && /\b(?:meeting|room|right there|in the moment)\b/i.test(question)) return 'executive-disagreement';
   if (!asksForStory && /\bprioriti[sz]\w*\b/i.test(question) && /\b(?:urgent|competing|multiple|leaders?|requests?|deadlines?)\b/i.test(question)) return 'prioritization';
+  if (!asksForStory && !asksForImplementation && /\b(?:incorrect|wrong|inaccurate|misleading|bad) (?:data|numbers|figures)|\b(?:data |quality )?issue slipped through\b/i.test(question) && /\b(?:decision|executive|exec|leader|made a call)\b/i.test(question)) return 'decision-recovery';
+  if (!asksForStory && !asksForImplementation && /\b(?:people|employee|workforce|personnel|access control)\b/i.test(question) && /\bprivacy\b|\bsensitive (?:people|employee|workforce|personnel) data\b/i.test(question)) return 'privacy';
   // Explicit hypothetical wording must win over phrases such as "under pressure".
   if (/\b(?:how|what|which) would you\b|\b(?:imagine|suppose|hypothetically)\b|\blet[’']?s say\b|\bif you (?:were|joined|had to)\b/i.test(question)) return 'case';
   if (/\bbackdat(?:ed|ing)|\blate.arriv|\bsnapshot strateg|\btimestamp (?:or|vs\.?) check/i.test(question)) return 'implementation';
@@ -38,13 +41,17 @@ function buildAnswerTask(question) {
     reaction: 'Answer this follow-up in about 20-35 seconds, roughly 50-85 words. Stay with the same stakeholder and episode: explain their initial reaction, what I said or changed in response, and what they agreed to do. Do not retell the technical problem or restart the whole story. Keep any illustrative details clearly illustrative.',
     'executive-disagreement': 'Show calm executive presence before data mechanics. Give a brief neutral phrase I could say in the room without embarrassing either leader, keep the meeting moving, and establish whether the discrepancy changes the decision. Pause only the affected decision if needed. Then take visible ownership of validating the figures with the relevant owners. Keep legitimately different measures separately labeled; reconcile to one figure only if they are intended to measure the same thing. Do not force false agreement. Keep the spoken answer around 45-60 seconds, with one clear in-the-room action and follow-through.',
     prioritization: 'Give a 45-60-second answer, roughly 110-150 words: one sentence about business impact and the actual decision deadline, ONE concrete mini-case comparing competing requests, and the order and trade-off I would communicate. Introduce a hypothetical mini-case with "For example"; it does not need a practice-story header because it is not claimed as past experience. State a realistic next step or owner. Stop after the example and alignment; do not add a long escalation, validation or governance checklist.',
+    'decision-recovery': 'Lead decisively with protecting the decision: immediately flag the risk to the decision owner and work with them to pause affected action if the error could change it. Do not wait for a full root-cause investigation before warning them of a credible risk. Establish the affected figures and decisions, communicate the corrected recommendation and take ownership of a labeled correction and a targeted prevention check. Be accountable, not blameful. Use conditional language for this hypothetical, not a claimed past success. Keep it around 45-60 seconds with a short phrase I would actually say, not a long incident checklist.',
+    privacy: 'For this broad privacy question, answer a business audience in about 45-60 seconds, roughly 110-145 words. Lead with least privilege and small-group suppression: people see only the data needed for their decision, and tiny groups must not expose individuals. Give one brief relevant workplace example; use documented experience or a clearly hypothetical "For example, I would...", not an invented past privacy implementation. Mention warehouse-enforced access and one concrete check of what an unauthorized user cannot see. Explain that dashboard filters alone are insufficient. Do not list every role, masking policy, log, environment and review process; save implementation depth for a technical follow-up. Do not invent a universal group-size threshold.',
   };
   if (!tasks[intent]) return '';
   const executiveExample = intent === 'story' && /\b(?:executives?|leadership|COO|CFO|CEO|VP|business leader)\b/i.test(question)
     ? '\n' + EXECUTIVE_STORY_STYLE : '';
   const stakeholderFocus = intent === 'story' && /\b(?:push.?back|disagree\w*|conflict|challeng\w* a (?:request|stakeholder))\b/i.test(question)
     ? '\nSpend most of this story on stakeholder management: their underlying goal, the respectful words I used to push back, how they reacted, how I listened or negotiated an alternative, and the agreed action. Keep the data issue to a short explanation unless asked for implementation. Include the reaction and resolution in the main story, not just a follow-up. Use documented reactions where available; label a practice scenario when filling missing episode details.' : '';
-  return '=== Current answer task (non-coding only) ===\n' + tasks[intent] + stakeholderFocus + executiveExample;
+  const qualityFocus = intent === 'story' && /\bdata.quality\b|\b(?:incorrect|inaccurate|wrong|misleading) (?:data|numbers|report\w*)\b/i.test(question)
+    ? '\nKeep this quality story near 60 seconds, roughly 140-170 words unless more detail is requested. Make the consequence tangible: which decision or reporting use was at risk and whether the error was actually material, using verified scale if known. Distinguish a potential bad decision from one that actually occurred. Show how I worked with the source owner or People Operations: what we checked together, what they confirmed or corrected, and how I verified the fix. End with the concrete corrected output, the decision protected and the repeatable control. Do not substitute "better data" for the outcome, invent a severity number, or borrow an unrelated resume metric. Label any missing episode details as illustrative.' : '';
+  return '=== Current answer task (non-coding only) ===\n' + tasks[intent] + stakeholderFocus + qualityFocus + executiveExample;
 }
 
 const CATEGORY_PATTERNS = {
@@ -137,7 +144,8 @@ function detectCategory(transcript) {
 
   const intent = answerIntent(recentThem);
   if (intent === 'reaction') return 'behavioral';
-  if (intent === 'prioritization' || intent === 'executive-disagreement') return 'situational';
+  if (intent === 'prioritization' || intent === 'executive-disagreement' || intent === 'decision-recovery') return 'situational';
+  if (intent === 'privacy') return 'situational';
   if (intent === 'story') return 'behavioral';
   if (intent === 'implementation') return 'technical';
   if (intent === 'communication') return 'experience';

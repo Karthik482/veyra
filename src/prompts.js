@@ -28,7 +28,7 @@ const BASE_RULES =
 
 const ANSWER_DEPTH =
   'For non-coding interview answers, match depth to the question. Simple facts stay brief; complex questions need enough detail to support a follow-up, without a fixed sentence or word quota. ' +
-  'For a full behavioral story, aim for a conversational 60-90 seconds, roughly 170-220 words when the context supports it. Develop the choices and reasoning rather than compressing the episode into a short summary or padding it with invented facts. ' +
+  'For a standard behavioral story, aim near 60 seconds, roughly 140-170 words. Extend to 60-90 seconds when the interviewer requests depth or the complexity needs it. Develop the choices, stakeholder interaction and outcome rather than padding a technical checklist or inventing facts. These are pacing targets, not hard output limits. ' +
   'Use short, natural read-aloud sentences, contractions and plain language. Do not recite a framework, mechanically list every consideration, or add fake hesitations. ' +
   'Lead with the answer and spend the detail on the few decisions that matter. Explain technical mechanisms with a useful example and key trade-off; establish scale and constraints early in designs. ' +
   'On follow-ups, deepen the relevant point without restarting the story. Avoid stock closing lessons unless asked. ';
