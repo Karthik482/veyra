@@ -231,7 +231,8 @@ function selectStoryContext(stories, question = '', limit = 2000, transcript = [
   const intent = answerIntent(question);
   const newEpisode = /\btell me about|\bdescribe (?:a|an)|\bgive (?:me |us )?(?:an? |one )example|\bwalk (?:me|us) through/i.test(question);
   const refersBack = /\b(?:they|them|that|this|the (?:leader|stakeholder|executive|decision|outcome|result|model|project))\b/i.test(question);
-  const followup = !newEpisode && (['reaction', 'example-followup'].includes(intent) || refersBack || Math.max(...directScores) < 6);
+  const asksPriorMethod = /^\s*(?:(?:and|so)\s+)?(?:(?:what|which) (?:kind|type|sort) of (?:model|method|approach|algorithm)(?: did you (?:use|choose))?|(?:what|which) (?:model|method|approach|algorithm) did you (?:use|choose))(?: here| for (?:it|that|this))?\s*[?.!]*$/i.test(question);
+  const followup = !newEpisode && (['reaction', 'example-followup'].includes(intent) || refersBack || asksPriorMethod || Math.max(...directScores) < 6);
   const latestReply = transcript.filter(turn => turn.channel === 'you').at(-1)?.text || '';
   const priorQuestion = transcript.filter(turn => turn.channel === 'them').at(-2)?.text || '';
   const ranked = cards.map((card, index) => ({

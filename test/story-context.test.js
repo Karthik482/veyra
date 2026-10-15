@@ -63,6 +63,19 @@ test('an explicit new story request takes precedence over a previous long episod
   assert.ok(!selected.includes('ExampleCo Priorities'));
 });
 
+test('short questions about the model or method keep the project being discussed', () => {
+  const planning = '=== INTERVIEW STORY: ExampleCo workforce planning [CONFIRMED REAL] ===\nQuestions: workforce planning capacity forecast allocation labor cost\nEpisode: Estimated required role-hours against available capacity.\nOutcome: Compared staffing-plan costs.';
+  const expandedBank = bank + '\n\n' + planning;
+  for (const question of ['What kind of model did you use?', 'Which method did you choose?', 'So what type of approach did you use here?']) {
+    const selected = selectStoryContext(expandedBank, question, 2000, [
+      { channel: 'them', text: 'Tell me more about the workforce planning project and how you estimated staffing costs.' },
+      { channel: 'you', text: 'I compared required role-hours with remaining capacity using allocation and labor cost data.' },
+      { channel: 'them', text: question },
+    ]);
+    assert.ok(selected.includes('ExampleCo workforce planning [CONFIRMED REAL]'), question);
+  }
+});
+
 test('structured cards keep their outcome for small context budgets while legacy notes stay compatible', () => {
   const selected = selectStoryContext(bank, 'What did you learn from a mistake?', 100);
   assert.ok(selected.includes('Outcome: The leave-status exception stopped recurring.'));
