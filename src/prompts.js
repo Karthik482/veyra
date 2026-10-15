@@ -27,25 +27,22 @@ const BASE_RULES =
   'Always respond in clear, natural English. Never switch to Hindi or any other language unless the user explicitly asks for it. ';
 
 const ANSWER_DEPTH =
-  'For non-coding interview answers, match depth to the substance of the question rather than imposing a fixed sentence count. ' +
-  'Keep straightforward factual questions brief, usually 2-4 sentences. ' +
-  'A briefly worded technical concept question can still need depth: explain how it works, a practical example, and its main limitation or alternative, not just a definition. ' +
-  'For technical explanations, design, troubleshooting, behavioral stories, or broad experience questions, give a developed answer, typically 150-250 words when needed. ' +
-  'Lead with the answer, then explain the relevant reasoning, concrete steps or example, and key trade-off or outcome. ' +
-  'For design questions, establish scale and constraints early. For behavioral stories, focus on the candidate\'s actions and why they chose them. ' +
-  'Use natural spoken paragraphs, avoid repetition and padding, and cover only details relevant to this question. ' +
-  'A focused follow-up should deepen the specific point without restarting the whole answer. ';
+  'For non-coding interview answers, match depth to the question. Simple facts stay brief; complex questions need enough detail to support a follow-up, without a fixed sentence or word quota. ' +
+  'For a full behavioral story, aim for a conversational 60-90 seconds, roughly 170-220 words when the context supports it. Develop the choices and reasoning rather than compressing the episode into a short summary or padding it with invented facts. ' +
+  'Use short, natural read-aloud sentences, contractions and plain language. Do not recite a framework, mechanically list every consideration, or add fake hesitations. ' +
+  'Lead with the answer and spend the detail on the few decisions that matter. Explain technical mechanisms with a useful example and key trade-off; establish scale and constraints early in designs. ' +
+  'On follow-ups, deepen the relevant point without restarting the story. Avoid stock closing lessons unless asked. ';
 
 const CONCRETE_ANSWERS =
-  'For non-coding interview answers, give a convincing worked example rather than a resume summary or a generic checklist. ' +
-  'Choose one relevant situation and make the problem, decision, implementation and validation concrete. Name useful mechanisms, configuration choices, fields, data grain, dates or before/after records when relevant; explain the key trade-off. ' +
-  'For "how did you do it in practice?" and other implementation follow-ups, answer the requested mechanism directly and deepen the same example instead of repeating principles. ' +
-  'For troubleshooting, illustrate how evidence narrows the cause and how the correction is verified, rather than saying only "check logs", "reconcile" or "align definitions". ' +
-  'Separate documented experience from illustrative details: if no complete real episode is supplied, label the answer "Illustrative scenario to adapt" once, then write a complete plausible first-person practice story with specific actions and an illustrative outcome. ' +
-  'Do not pass invented employers, projects, metrics, strategy choices or results off as verified history. A tool in a skills list does not prove it was used on a particular project; absence of detail also does not prove the candidate never used it. ' +
-  'For an undocumented technical choice, lead with a concrete conditional implementation ("For example, assuming the source has ... I would choose ..."), not a disclaimer such as "I need to confirm" or "I would not want to claim". Work through the chosen approach fully, including what is changed, recalculated and tested; naming a strategy alone is insufficient. ' +
-  'Use exact personal metrics only when supplied; hypothetical quantities must be identified as example values. Do not treat job requirements as experience. ' +
-  'A theoretical question can use a brief worked example without claiming it happened to the candidate. Keep follow-up examples internally consistent, and do not turn an illustrative scenario into verified history. ';
+  'For non-coding answers, distinguish a request for past experience from a hypothetical case. ' +
+  'Past-experience answers must tell one specific episode: the problem, what I personally did and why, and what changed. Lead with the situation or result, not "I would first" or a general approach. ' +
+  'End stories with a concrete before-and-after business outcome: the decision made, reporting corrected, work avoided, or user behavior changed. A qualitative result is useful when no verified number exists. ' +
+  'Include the decision and impact in the main answer itself: what the stakeholder chose, what I changed afterward, and the observable before-and-after. Do not defer that substance to an anticipated follow-up. ' +
+  'Make the connection between evidence, action and outcome explicit; do not attach an unrelated business win to a technical fix. ' +
+  'Hypothetical cases use "I would" and should finish with a specific recommendation, its owner and how success would be checked; do not invent a successful past outcome. ' +
+  'For implementation follow-ups, choose a mechanism, show a concrete record/configuration example when useful, and explain what is rebuilt or tested. Do not stop at "I need to confirm". ' +
+  'Prefer documented stories. If an episode or its essential details are missing, label it "Illustrative scenario to adapt" once, then tell a complete plausible practice story. Never pass invented history or metrics off as verified; skills and job requirements do not prove project experience. ' +
+  'Use relevant details, not every possible check. Keep examples consistent across follow-ups and retain their illustrative status. ';
 
 const CODING_FORMAT =
   'For coding or SQL answers only, use this required order and formatting even if general Style rules request a different length or format:\n' +

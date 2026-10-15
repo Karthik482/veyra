@@ -4,6 +4,40 @@
 // category is in play and injects only the fields that are relevant.
 
 // ── Question category detection ───────────────────────────────────────────────
+function answerIntent(question = '') {
+  // Explicit hypothetical wording must win over phrases such as "under pressure".
+  if (/\b(?:how|what|which) would you\b|\b(?:imagine|suppose|hypothetically)\b|\blet[’']?s say\b|\bif you (?:were|joined|had to)\b/i.test(question)) return 'case';
+  if (/\bbackdat(?:ed|ing)|\blate.arriv|\bsnapshot strateg|\btimestamp (?:or|vs\.?) check/i.test(question)) return 'implementation';
+  if (/\btell me about (?:a|an) (?:time|occasion|incident|project|presentation|decision|example)\b|\bdescribe (?:a|an) (?:time|occasion|situation|incident|project|presentation)\b|\bgive (?:me |us )?(?:a specific |an? )?example\b|\bhow (?:did|have) you\b|\bhave you ever\b/i.test(question)) return 'story';
+  if (/\b(?:present(?:ing|ed|ation)?|communicat\w*|explain|shar\w*)\b.*\b(?:executives?|leadership|stakeholders?|non.?technical|business audience)\b/i.test(question)) return 'communication';
+  if (/\bwhy (?:this|do you want|are you interested)|\bwhat (?:draws|attracts|interests|excites) you\b/i.test(question)) return 'motivation';
+  return '';
+}
+
+const EXECUTIVE_STORY_STYLE =
+  'Style reference only, fictional and not candidate history: ' +
+  '"One example was a leadership review where HR and Finance showed different headcount totals. The executive was worried the dashboard could not be trusted. ' +
+  'I started with the business question instead of explaining the SQL. I compared the two populations and showed that one report counted month-end employees while the other included additional worker categories. ' +
+  'I used a simple side-by-side breakdown to show which groups explained the difference. That changed the conversation from missing data to choosing the right definition. ' +
+  'My recommendation was to use month-end active employee headcount for workforce planning and keep Finance\'s defined population for budgeting. Leadership agreed to use each measure for its own decision. ' +
+  'Before that, mismatches stalled reviews and triggered manual reconciliation. I updated the model definitions and dashboard labels to make both populations explicit. Afterward, the teams used the agreed measures consistently and reduced recurring reconciliation work." ' +
+  'Match that conversational pacing and specific cause-action-result connection. Use the candidate\'s actual episode when available; do not copy this fictional situation as verified history. Avoid adding analysis, a critique or a "why this works" section after the spoken answer.';
+
+function buildAnswerTask(question) {
+  const intent = answerIntent(question);
+  const tasks = {
+    story: 'Tell one past episode with a specific opening, 2-3 personal actions or decisions and why they mattered, and a clear before-and-after result. Use short paragraphs for easy reading. Spend little time on setup. Do not substitute a generic method or an "I would" checklist. If using a practice scenario, label it once and tell that illustrative story fully. For an executive presentation, identify the decision, what the evidence or visual actually showed, the recommendation and what the leader did with it. Name the business decision or operational action, not just "better alignment" or "a shared view".',
+    case: 'Answer this hypothetical case with a focused analysis and one worked example. Then land on a concrete recommendation: who would act, what they would change, and which metric or observable result would show whether it worked. Do not end merely with "recommend a targeted action" or claim an unobserved improvement. Keep uncertainty proportional to the decision.',
+    communication: 'Show communication through one specific executive or stakeholder decision. Include the business question, the evidence or visual I would show, the recommendation, and the decision it enables. A past example should have a known outcome or be labeled illustrative. Avoid stopping at "tailor the message to the audience".',
+    motivation: 'Give specific reasons tied to this role and team setup, supported by one relevant example of how I have worked. Discuss the professional collaboration benefits of the setup asked about. Do not invent relocation plans or commuting availability, and do not mention missing preferences or these internal constraints in the spoken answer.',
+    implementation: 'Lead with an explicit conditional implementation choice ("Assuming ... I would choose ..."), then give a concrete record or date example, the important trade-off, and what is rebuilt and tested. Do not claim the assumed strategy was actually used. Do not open with a disclaimer about missing documentation or uncertainty over historical configuration.',
+  };
+  if (!tasks[intent]) return '';
+  const executiveExample = intent === 'story' && /\b(?:executives?|leadership|COO|CFO|CEO|VP|business leader)\b/i.test(question)
+    ? '\n' + EXECUTIVE_STORY_STYLE : '';
+  return '=== Current answer task (non-coding only) ===\n' + tasks[intent] + executiveExample;
+}
+
 const CATEGORY_PATTERNS = {
   behavioral: [
     /tell me about a time/i, /give me an example/i, /describe a situation/i,
@@ -91,6 +125,13 @@ function detectCategory(transcript) {
     .map(t => t.text)
     .join(' ');
   if (!recentThem) return 'general';
+
+  const intent = answerIntent(recentThem);
+  if (intent === 'story') return 'behavioral';
+  if (intent === 'implementation') return 'technical';
+  if (intent === 'communication') return 'experience';
+  if (intent === 'motivation') return 'motivation';
+  if (intent === 'case' && !/\b(?:design|architecture|code|coding|algorithm|implement|sql|query)\b/i.test(recentThem)) return 'situational';
 
   for (const [category, patterns] of Object.entries(CATEGORY_PATTERNS)) {
     if (patterns.some(re => re.test(recentThem))) return category;
@@ -322,6 +363,11 @@ function buildInterviewContext(settings, mode, transcript) {
 
   if (!blocks.length) return null;
 
+  if (mode === 'say' || mode === 'assist') {
+    const task = buildAnswerTask(question);
+    if (task) blocks.push(task);
+  }
+
   const tailorNote = hasJD
     ? '\nTailor every answer to highlight fit with the target role above.'
     : '';
@@ -348,4 +394,4 @@ function buildResumeContext(resumeText, jobDescription, mode) {
   return parts.join('\n\n');
 }
 
-module.exports = { buildInterviewContext, buildResumeContext, detectCategory, parseResume, selectResumeContext, selectJobDescription };
+module.exports = { buildInterviewContext, buildResumeContext, detectCategory, parseResume, selectResumeContext, selectJobDescription, answerIntent };

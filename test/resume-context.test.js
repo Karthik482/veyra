@@ -62,6 +62,30 @@ test('detectCategory: technical questions', () => {
   assert.equal(detectCategory([{ channel: 'them', text: 'What is the difference between SQL and NoSQL?' }]), 'technical');
 });
 
+test('past presentations and communication examples retain personal story context', () => {
+  for (const question of ['Describe a time you presented complex analysis to an executive.', 'How have you communicated findings to leadership?', 'Tell me about a presentation you made to a business leader.']) {
+    assert.equal(detectCategory([{ channel: 'them', text: question }]), 'behavioral', question);
+  }
+  assert.equal(detectCategory([{ channel: 'them', text: 'How do you present findings to executives?' }]), 'experience');
+});
+
+test('hypothetical pressure cases and implementation follow-ups are distinguished from personal stories', () => {
+  const { answerIntent } = require('../src/interview-context');
+  const question = 'Suppose turnover is rising and you are under pressure. How would you investigate?';
+  assert.equal(answerIntent(question), 'case');
+  assert.equal(detectCategory([{ channel: 'them', text: question }]), 'situational');
+  assert.equal(answerIntent('How did you handle backdated corrections in practice?'), 'implementation');
+  assert.equal(detectCategory([{ channel: 'them', text: 'How did you handle backdated corrections in practice?' }]), 'technical');
+});
+
+test('executive story requests receive the stored episode and an outcome task', () => {
+  const story = 'At ExampleCo, a COO needed to approve workforce planning. I compared the HR roster with Finance FTE totals, showed one reconciled chart and recommended separate definitions. The COO approved the corrected roster for planning.';
+  const context = buildInterviewContext({ resumeText: 'ExampleCo engineer', starStories: story }, 'say', [{ channel: 'them', text: 'Describe a time you presented an analysis to an executive.' }]);
+  assert.ok(context.includes(story));
+  assert.match(context, /what the leader did with it/);
+  assert.match(context, /before-and-after result/);
+});
+
 test('detectCategory: returns general for empty transcript', () => {
   assert.equal(detectCategory([]), 'general');
   assert.equal(detectCategory(null), 'general');
