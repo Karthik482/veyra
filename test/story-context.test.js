@@ -76,6 +76,20 @@ test('short questions about the model or method keep the project being discussed
   }
 });
 
+test('a business outcome follow-up retains the project despite a competing stakeholder keyword', () => {
+  const planning = '=== INTERVIEW STORY: ExampleCo workforce planning [CONFIRMED REAL] ===\nQuestions: end-to-end project sources capacity dbt\nEpisode: Connected assignments and labor rates.\nOutcome: Compared staffing against capacity before budgeting discussions.';
+  const competing = '=== INTERVIEW STORY: Salary reconciliation [HYPOTHETICAL] ===\nQuestions: Finance actually costs differently\nMethod: Reconcile project costs to a salary pool.';
+  const question = 'What did Finance actually do differently after your project?';
+  const transcript = [
+    { channel: 'them', text: 'Walk me through an end-to-end project, including sources and what you built.' },
+    { channel: 'you', text: 'I built workforce planning dbt models connecting assignments and labor rates to capacity.' },
+    { channel: 'them', text: question },
+  ];
+  const stories = bank + '\n\n' + planning + '\n\n' + competing;
+  assert.equal(selectStoryContext(stories, question, 2000, transcript), planning);
+  assert.equal(selectStoryContext(stories, 'Tell me about a mistake you made and what you learned after your project.', 2000, transcript).split('\n')[0], cards[4].split('\n')[0]);
+});
+
 test('structured cards keep their outcome for small context budgets while legacy notes stay compatible', () => {
   const selected = selectStoryContext(bank, 'What did you learn from a mistake?', 100);
   assert.ok(selected.includes('Outcome: The leave-status exception stopped recurring.'));
