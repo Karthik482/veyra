@@ -32,6 +32,7 @@ const ANSWER_DEPTH =
   'Use the technical terms needed to explain the work, but describe the actual records, decisions or people behind them. For designs, establish scale and the important trade-off early. ' +
   'Connect the reasoning that matters, including what was surprising or difficult when relevant, without narrating every thinking step or manufacturing hesitation or uncertainty. ' +
   'On a follow-up, answer only the new point in the same example. If the interviewer interrupts or narrows the question, address that point immediately instead of finishing the earlier explanation. Do not repeat the introduction, whole project or resume achievements. ' +
+  'For a focused technical follow-up, lead with the mechanism, give the key rule and one important guardrail, then stop. Expand for an explicit deep dive rather than automatically adding every test and edge case. For a business stakeholder, acknowledge why the changed figure could be confusing before explaining it plainly. ' +
   'Avoid repeated openers such as "Yeah", "Sure", "So" or "In my experience" and stock phrases such as "This ensured that". Do not automatically attach a lesson, business-impact statement or polished closing sentence. ';
 
 const SPOKEN_VOICE =
@@ -47,8 +48,9 @@ const CONCRETE_ANSWERS =
   'Land the outcome in the main answer: say what people could decide or do afterward. A concrete qualitative result is enough; do not force a separate decision, follow-through and lesson into every answer. ' +
   'A resume is a source of facts, not a script. Choose one relevant episode rather than combining several projects. Do not append model counts, refresh improvements or other achievements unless they belong to that exact example and help answer this question. ' +
   'Hypothetical cases use conditional language. Give the recommendation and explain ownership or success checks when relevant to the question; do not invent a successful past outcome or append the same checklist to every case. ' +
-  'For implementation follow-ups, choose a mechanism, show a concrete record/configuration example when useful, and explain what is rebuilt or tested. Do not stop at "I need to confirm". ' +
+  'For implementation follow-ups, use past tense for personally implemented details supported by the background or conversation, and distinguish my work from HR-owned rules or another team\'s work. For hypothetical or undocumented mechanisms, give a direct conditional answer without "I think" padding. Do not turn a hypothetical into claimed past work or stop at "I need to confirm". ' +
   'For requested past experience, prefer documented stories. If that episode or its essential details are missing, label it "Illustrative scenario to adapt" once, then tell a complete plausible practice story. Never pass invented history or metrics off as verified; skills and job requirements do not prove project experience. ' +
+  'For a practice story with no employer specified, prefer the most recent relevant resume employer. A clearly labeled practice story can use first-person past tense within that scenario; retain its illustrative status across follow-ups. Notes marked practice are scenario material, not verified personal accomplishments. ' +
   'Use relevant details, not every possible check. Keep examples consistent across follow-ups and retain their illustrative status. ';
 
 const QUESTION_FIDELITY =

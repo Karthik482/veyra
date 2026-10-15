@@ -8,6 +8,7 @@ function answerIntent(question = '') {
   const asksForStory = /\btell me about (?:a|an) (?:time|occasion|incident|project|presentation|decision|example)\b|\bdescribe (?:a|an) (?:time|occasion|situation|incident|project|presentation)\b|\bgive (?:me |us )?(?:a specific |an? )?example\b|\bhow (?:did|have) you\b|\bhave you ever\b/i.test(question);
   const asksForImplementation = /\b(?:implement\w*|design\w*|configur\w*|sql|code|coding|query|queries|algorithm|debug\w*|in detail|deep dive|step.by.step)\b/i.test(question);
   if (/\bhow did (?:the |your )?(?:stakeholders?|they|leaders?|leadership|HR(?: partners?)?|Finance).{0,30}(?:react|respond)\b|\bwhat was (?:their|the(?: stakeholder[’']s)?|HR[’']s|leadership[’']s) (?:initial )?reaction\b/i.test(question)) return 'reaction';
+  if (!asksForStory && /\b(?:explain|describe)\b/i.test(question) && /\b(?:HR partner|non.?technical|business stakeholder)\b/i.test(question)) return 'stakeholder-explanation';
   if (!asksForStory && /\b(?:executives?|execs?|leaders?|CFO|COO|CEO|VP)\b/i.test(question) && /\b(?:different|conflicting|disagree|contradictory|inconsistent|mismatch)\b/i.test(question) && /\b(?:meeting|room|right there|in the moment)\b/i.test(question)) return 'executive-disagreement';
   if (!asksForStory && /\bprioriti[sz]\w*\b/i.test(question) && /\b(?:urgent|competing|multiple|leaders?|requests?|deadlines?)\b/i.test(question)) return 'prioritization';
   if (!asksForStory && !asksForImplementation && /\b(?:incorrect|wrong|inaccurate|misleading|bad) (?:data|numbers|figures)|\b(?:data |quality )?issue slipped through\b/i.test(question) && /\b(?:decision|executive|exec|leader|made a call)\b/i.test(question)) return 'decision-recovery';
@@ -16,6 +17,7 @@ function answerIntent(question = '') {
   // Explicit hypothetical wording must win over phrases such as "under pressure".
   if (/\b(?:how|what|which) would you\b|\b(?:imagine|suppose|hypothetically)\b|\blet[’']?s say\b|\bif you (?:were|joined|had to)\b/i.test(question)) return 'case';
   if (/\bbackdat(?:ed|ing)|\blate.arriv|\bsnapshot strateg|\btimestamp (?:or|vs\.?) check/i.test(question)) return 'implementation';
+  if (!/\b(?:tell me about|describe|give me|walk me through)\b/i.test(question) && /\b(?:how (?:did|do|does)|what (?:key|rule|identifier|grain)|which (?:key|rule|identifier))\b/i.test(question) && /\b(?:identity (?:crosswalk|mapping|resolution)|person key|employee IDs?|employment spells?)\b|\bgap\b.{0,35}\b(?:roles?|jobs?|employment)\b/i.test(question)) return 'implementation';
   if (/\b(?:an?|one)(?: specific| concrete)? example\b/i.test(question) && /\b(?:that|this|the same) (?:model|project|pipeline|system|report)|\bin that (?:case|situation)\b/i.test(question)) return 'example-followup';
   if (!asksForStory && /\b(?:walk (?:me|us) through|tell (?:me|us) about|describe|explain)\b/i.test(question) && /\b(?:models?|pipelines?|projects?|systems?|services?|applications?)\b/i.test(question) && /\byour\b|\byou(?:[’']ve| have)? (?:built|developed|created|worked on|designed|structured)\b/i.test(question)) return 'project-walkthrough';
   if (asksForStory) return 'story';
@@ -33,7 +35,8 @@ function buildAnswerTask(question) {
     case: 'Answer this hypothetical case with focused reasoning and a worked example if useful. Give a concrete recommendation, explaining who would act or how success would be checked when that helps the question. Do not end merely with "recommend a targeted action" or claim an unobserved improvement. Keep uncertainty proportional to the decision; do not force the same sequence or closing into every case.',
     communication: 'Show communication through one specific executive or stakeholder decision. Include the business question, the evidence or visual I would show, the recommendation, and the decision it enables. A past example should have a known outcome or be labeled illustrative. Avoid stopping at "tailor the message to the audience".',
     motivation: 'Give specific reasons tied to this role and team setup, supported by one relevant example of how I have worked. Discuss the professional collaboration benefits of the setup asked about. Do not invent relocation plans or commuting availability, and do not mention missing preferences or these internal constraints in the spoken answer.',
-    implementation: 'Lead with an explicit conditional implementation choice ("Assuming ... I would choose ..."), then give a concrete record or date example, the important trade-off, and what is rebuilt and tested. Do not claim the assumed strategy was actually used. Do not open with a disclaimer about missing documentation or uncertainty over historical configuration.',
+    implementation: 'Lead with the implementation mechanism. For documented personal work, say what I actually built or changed in past tense and distinguish my part from other owners. For a hypothetical or undocumented detail, state a short relevant assumption and answer conditionally. A concrete record or date example can explain the choice. Include only the important trade-off or check for this question; expand when asked. Do not claim an assumed strategy was actually used or open with a missing-documentation disclaimer.',
+    'stakeholder-explanation': 'Give a brief explanation in business language. If their figure changed, acknowledge that the new number may differ from what they saw before, then explain the one counting or definition change and what it means for their decision. Do not assume their earlier number was wrong without evidence. Skip person keys, interval joins and dbt tests unless requested. Keep the explanation connected, not a technical checklist.',
     reaction: 'Answer briefly about the same episode. Describe a concrete stakeholder response or action supported by the notes or conversation, such as questioning a definition, checking records together or agreeing to use a corrected report. Do not substitute "they appreciated it" or "they trusted the data" for an observed response, or invent praise or emotions as fact. When joint work is documented but feelings are not, describe that work directly: "We checked the affected records together, and they confirmed the transfer date." Do not open with commentary about notes, missing documentation or not wanting to invent an answer. If no response or action is available, make any added continuation clearly illustrative; retain an existing scenario label. Do not restart the technical problem.',
     'metric-alignment': 'Give a short conversational answer about keeping definitions aligned over time: an agreed definition and business owner, shared reporting logic, and a joint review of meaningful changes. One brief headcount example is enough. Keep legitimately different HR and Finance populations clearly named instead of forcing one number. Stop once the ongoing agreement and change process are clear; save a detailed governance or testing process for a follow-up.',
     'executive-disagreement': 'Show calm executive presence before data mechanics. Give a brief neutral phrase I could say in the room without embarrassing either leader, keep the meeting moving, and establish whether the discrepancy changes the decision. Pause only the affected decision if needed. Take ownership of validating the figures with the relevant owners. Keep legitimately different measures separately labeled; reconcile to one figure only if they are intended to measure the same thing. Do not force false agreement or a lengthy closing.',
@@ -41,12 +44,21 @@ function buildAnswerTask(question) {
     'decision-recovery': 'Lead decisively with protecting the decision: immediately flag the risk to the decision owner and work with them to pause affected action if the error could change it. Do not wait for a full root-cause investigation before warning them of a credible risk. Explain how I would establish the affected figures and correct the recommendation. Take ownership without blame; include a prevention check when useful. Use conditional language for this hypothetical, not a claimed past success. Keep it direct, not a long incident checklist.',
     privacy: 'For this broad privacy question, answer a business audience briefly. Lead with least privilege and small-group suppression: people see only the data needed for their decision, and tiny groups must not expose individuals. Add one practical example if helpful, using documented experience or a clearly hypothetical "For example, I would...", not an invented past implementation. Explain warehouse-enforced access rather than dashboard filters alone; give a concrete access check if needed. Save the list of roles, masking policies, logs and reviews for a technical follow-up. Do not invent a universal group-size threshold.',
   };
-  if (!tasks[intent]) return '';
+  const workforceRules = [];
+  if (intent !== 'stakeholder-explanation' && /\b(?:employment|employees?|workers?|headcount|person key|crosswalk|internal mobility|internal transfer|subsidiar\w*)\b|\bgap\b.{0,35}\b(?:roles?|jobs?|employment)\b/i.test(question)) {
+    if (/\b(?:identity|person key|crosswalk|IDs?|match\w*|transfer\w*|mobility|subsidiar\w*|gap)\b/i.test(question)) {
+      workforceRules.push('For identity and mobility modeling, lead with a trusted stable person key or approved identity crosswalk when identity is the question. Preserve source employee IDs and separate employment spells. Identity matching identifies the person; it does not by itself prove an internal transfer. Classification needs a confirmed transfer event or an HR-approved rule. Do not invent a universal gap threshold, including for a three-week gap, or infer a transfer from similar names or nearby dates alone. Preserve legal-entity exit/hire events when applicable while classifying enterprise movement under the agreed reporting scope.');
+    }
+    if (/\b(?:headcount|snapshots?|exit (?:fact|event|totals?)|double.count\w*)\b/i.test(question)) {
+      workforceRules.push('For counting questions, distinguish exit-event grain from headcount-snapshot grain. Attribute an exit to the relevant assignment at the exit time. Enterprise person headcount counts an eligible person once at each snapshot date; assignment or legal-entity counts can have another agreed grain. Use point-in-time membership and an explicit allocation rule for concurrent assignments rather than silently deleting legitimate employment records. Mention only the grain relevant to the question, or both when asked.');
+    }
+  }
+  if (!tasks[intent] && !workforceRules.length) return '';
   const stakeholderFocus = intent === 'story' && /\b(?:push.?back|disagree\w*|conflict|challeng\w* a (?:request|stakeholder))\b/i.test(question)
     ? '\nSpend most of this story on stakeholder management: their underlying goal, the respectful words I used to push back, how they reacted, how I listened or negotiated an alternative, and the agreed action. Keep the data issue to a short explanation unless asked for implementation. Include the reaction and resolution in the main story, not just a follow-up. Use documented reactions where available; label a practice scenario when filling missing episode details.' : '';
   const qualityFocus = intent === 'story' && /\bdata.quality\b|\b(?:incorrect|inaccurate|wrong|misleading) (?:data|numbers|report\w*)\b/i.test(question)
     ? '\nChoose one specific mismatch, not a catalog of missing workers, duplicates and status issues. Explain what was wrong in a record or join, what I changed, and how I verified the corrected output with the source owner. Make the consequence tangible: which decision was at risk, using verified scale if known. Distinguish a potential bad decision from one that actually occurred. Explain the work with the source owner or People Operations: what they confirmed or corrected and what that let us fix. Land the corrected output, the decision protected and any repeatable control naturally, without a checklist or a minimum word count. Do not invent a severity number or borrow an unrelated resume metric. Label missing episode details illustrative.' : '';
-  return '=== Current answer task (non-coding only) ===\n' + tasks[intent] + stakeholderFocus + qualityFocus;
+  return '=== Current answer task (non-coding only) ===\n' + (tasks[intent] || 'Answer this technical point directly.') + stakeholderFocus + qualityFocus + (workforceRules.length ? '\n' + workforceRules.join('\n') + '\nUse only the point needed for this question; do not recite all of these rules.' : '');
 }
 
 const CATEGORY_PATTERNS = {
@@ -139,6 +151,7 @@ function detectCategory(transcript) {
 
   const intent = answerIntent(recentThem);
   if (intent === 'reaction') return 'behavioral';
+  if (intent === 'stakeholder-explanation') return 'experience';
   if (intent === 'prioritization' || intent === 'executive-disagreement' || intent === 'decision-recovery') return 'situational';
   if (intent === 'privacy') return 'situational';
   if (intent === 'metric-alignment') return 'situational';
@@ -253,8 +266,12 @@ function buildJDBlock(jd, limit = 1800, question = '') {
   return selected ? 'Target Role / Job Description (requirements, not candidate experience):\n' + selected : '';
 }
 
+function isPersonalTechnicalQuestion(question = '') {
+  return /your (?:experience|project|role|work|team|pipeline|company|model|implementation)|(?:did|have|were) you|you(?:[’']ve| have) (?:built|worked|implemented)/i.test(question);
+}
+
 function selectResumeContext(resume, category, question = '') {
-  if (category === 'technical' && !/your (?:experience|project|role|work|team|pipeline|company)|(?:did|have|were) you|you(?:'ve| have) (?:built|worked)/i.test(question)) return '';
+  if (category === 'technical' && !isPersonalTechnicalQuestion(question)) return '';
   // Introductions and resume walkthroughs need the whole career history.
   if (['experience', 'general'].includes(category) || resume.length <= 3500) return buildResumeBlock(resume, 12000);
   const lines = resume.trim().split(/\r?\n/);
@@ -331,9 +348,9 @@ function buildInterviewContext(settings, mode, transcript) {
     case 'behavioral':
       if (hasStories) {
         blocks.push(
-          '=== Your STAR Stories (use these for behavioral questions) ===\n' +
+          '=== Your STAR / Interview Stories (respect factual and practice labels) ===\n' +
           clip(stories.trim(), 2000) + '\n' +
-          'Use the relevant documented episode as factual reference, not a script. Tell it in ordinary speech; keep STAR invisible and include only details that help answer the current question.'
+          'Use documented experience as factual reference and explicitly labeled practice material as an illustrative scenario. Do not promote a practice story into verified experience. Tell it in ordinary speech; keep STAR invisible and include only details that help answer the current question.'
         );
       } else {
         blocks.push(
@@ -366,7 +383,7 @@ function buildInterviewContext(settings, mode, transcript) {
       break;
 
     case 'technical':
-      // Resume skills section is most relevant here — already included above
+      if (hasStories && isPersonalTechnicalQuestion(question)) blocks.push('Interview implementation notes (respect factual/practice labels and ownership):\n' + clip(stories, 1500));
       break;
 
     case 'general':

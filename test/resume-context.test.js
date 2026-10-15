@@ -110,6 +110,33 @@ test('ongoing metric alignment uses a brief judgment answer while past stories a
   assert.equal(useSpokenModel('say', detectCategory([{ channel: 'them', text: detailed }]), detailed), false);
 });
 
+test('business explanations for HR use the audience task instead of a general technical case', () => {
+  const { answerIntent } = require('../src/interview-context');
+  const question = 'How would you explain that choice to an HR partner who wants to know why their numbers changed?';
+  assert.equal(answerIntent(question), 'stakeholder-explanation');
+  assert.equal(detectCategory([{ channel: 'them', text: question }]), 'experience');
+  const context = buildInterviewContext({ resumeText: 'ExampleCo engineer' }, 'say', [{ channel: 'them', text: question }]);
+  assert.match(context, /acknowledge/);
+  assert.doesNotMatch(context, /For identity and mobility modeling/);
+  assert.equal(answerIntent('Tell me about a time you explained a changed number to an HR partner.'), 'story');
+});
+
+test('personal technical follow-ups retain labeled experience without loading it for generic definitions', () => {
+  const { answerIntent } = require('../src/interview-context');
+  const notes = 'PRACTICE ONLY, not verified personal work: ExampleCo identity crosswalk maps source employee IDs to a stable person key. HR classification rules are hypothetical.';
+  const settings = { resumeText: 'ExampleCo workforce engineer', starStories: notes };
+  const personal = buildInterviewContext(settings, 'say', [{ channel: 'them', text: 'How did you implement the employee identity crosswalk and handle backdated changes?' }]);
+  assert.ok(personal.includes(notes));
+  assert.equal(answerIntent('How did you map different employee IDs to one person key?'), 'implementation');
+  assert.equal(detectCategory([{ channel: 'them', text: 'How did you decide whether a three-week gap between roles counted as a transfer?' }]), 'technical');
+  assert.equal(answerIntent('Tell me about a time you built an identity crosswalk.'), 'story');
+  assert.match(personal, /Identity matching identifies the person; it does not by itself prove an internal transfer/);
+  const generic = buildInterviewContext(settings, 'say', [{ channel: 'them', text: 'Explain what a primary key is.' }]);
+  assert.ok(!generic || !generic.includes(notes));
+  const coding = buildInterviewContext(settings, 'leetcode', [{ channel: 'them', text: 'Write a SQL query.' }]);
+  assert.equal(coding, null);
+});
+
 test('pushback story context prioritizes stakeholder interaction and the main-answer resolution', () => {
   const context = buildInterviewContext({ resumeText: 'ExampleCo analytics engineer' }, 'say', [{ channel: 'them', text: 'Tell me about a time you had to push back on a stakeholder request.' }]);
   assert.match(context, /how they reacted/);
