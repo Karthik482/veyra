@@ -41,7 +41,7 @@ const CONCRETE_ANSWERS =
   'Make the connection between evidence, action and outcome explicit; do not attach an unrelated business win to a technical fix. ' +
   'Hypothetical cases use "I would" and should finish with a specific recommendation, its owner and how success would be checked; do not invent a successful past outcome. ' +
   'For implementation follow-ups, choose a mechanism, show a concrete record/configuration example when useful, and explain what is rebuilt or tested. Do not stop at "I need to confirm". ' +
-  'Prefer documented stories. If an episode or its essential details are missing, label it "Illustrative scenario to adapt" once, then tell a complete plausible practice story. Never pass invented history or metrics off as verified; skills and job requirements do not prove project experience. ' +
+  'For requested past experience, prefer documented stories. If that episode or its essential details are missing, label it "Illustrative scenario to adapt" once, then tell a complete plausible practice story. Never pass invented history or metrics off as verified; skills and job requirements do not prove project experience. ' +
   'Use relevant details, not every possible check. Keep examples consistent across follow-ups and retain their illustrative status. ';
 
 const CODING_FORMAT =
@@ -130,7 +130,8 @@ const MODES = {
     build(ctx) {
       const recent = ctx.transcript.slice(-8);
       const latest = ctx.transcript.filter(turn => turn.channel === 'them').at(-1);
-      const t = formatTranscript(recent.map(turn => turn === latest ? turn : { ...turn, text: turn.text.slice(0, 1000) }));
+      const latestReply = recent.filter(turn => turn.channel === 'you').at(-1);
+      const t = formatTranscript(recent.map(turn => turn === latest ? turn : { ...turn, text: turn.text.slice(0, turn === latestReply ? 2500 : 1000) }));
       return 'Recent interview conversation:\n' + (t || '(listening not started yet)') +
         '\n\nCURRENT INTERVIEWER QUESTION:\n' + (latest?.text || '(no interviewer question captured yet)') +
         '\n\nAnswer the current interviewer question directly. Do not continue or rewrite the candidate\'s previous response. ' +

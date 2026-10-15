@@ -84,3 +84,16 @@ test('say mode targets the latest interviewer question after a candidate respons
   assert.match(prompt, /Do not continue or rewrite the candidate's previous response/);
   assert.ok(!prompt.includes('Them: turn 10\n'));
 });
+
+test('say follow-ups retain the outcome at the end of the most recent spoken story', () => {
+  const transcript = [
+    { channel: 'you', text: 'x'.repeat(1100) + 'OLD_REPLY_TAIL' },
+    { channel: 'them', text: 'Tell me about a time you pushed back on a request.' },
+    { channel: 'you', text: 'a'.repeat(1400) + ' We agreed a Friday review using comparable populations. LATEST_REPLY_OUTCOME' },
+    { channel: 'them', text: 'How did the stakeholder react to that pushback?' },
+  ];
+  const prompt = MODES.say.build({ transcript });
+  assert.ok(prompt.includes('LATEST_REPLY_OUTCOME'));
+  assert.ok(!prompt.includes('OLD_REPLY_TAIL'));
+  assert.match(prompt, /CURRENT INTERVIEWER QUESTION:\nHow did the stakeholder react/);
+});

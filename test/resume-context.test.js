@@ -78,6 +78,28 @@ test('hypothetical pressure cases and implementation follow-ups are distinguishe
   assert.equal(detectCategory([{ channel: 'them', text: 'How did you handle backdated corrections in practice?' }]), 'technical');
 });
 
+test('stakeholder reactions and judgment questions use focused answer tasks', () => {
+  const { answerIntent } = require('../src/interview-context');
+  const cases = [
+    ['How did the stakeholder react to that pushback?', 'reaction', 'behavioral'],
+    ['Two executives quote different attrition numbers in the same meeting. What do you do right there in the room, and what do you do after?', 'executive-disagreement', 'situational'],
+    ['How do you prioritize when multiple leaders say their request is urgent?', 'prioritization', 'situational'],
+  ];
+  for (const [question, intent, category] of cases) {
+    assert.equal(answerIntent(question), intent);
+    assert.equal(detectCategory([{ channel: 'them', text: question }]), category);
+  }
+  assert.equal(answerIntent('Tell me about a time you prioritized competing urgent requests.'), 'story');
+  assert.equal(answerIntent('Tell me about a time two executives disagreed in a meeting.'), 'story');
+});
+
+test('pushback story context prioritizes stakeholder interaction and the main-answer resolution', () => {
+  const context = buildInterviewContext({ resumeText: 'ExampleCo analytics engineer' }, 'say', [{ channel: 'them', text: 'Tell me about a time you had to push back on a stakeholder request.' }]);
+  assert.match(context, /how they reacted/);
+  assert.match(context, /listened or negotiated an alternative/);
+  assert.match(context, /reaction and resolution in the main story/);
+});
+
 test('executive story requests receive the stored episode and an outcome task', () => {
   const story = 'At ExampleCo, a COO needed to approve workforce planning. I compared the HR roster with Finance FTE totals, showed one reconciled chart and recommended separate definitions. The COO approved the corrected roster for planning.';
   const context = buildInterviewContext({ resumeText: 'ExampleCo engineer', starStories: story }, 'say', [{ channel: 'them', text: 'Describe a time you presented an analysis to an executive.' }]);

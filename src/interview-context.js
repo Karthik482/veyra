@@ -5,10 +5,14 @@
 
 // ── Question category detection ───────────────────────────────────────────────
 function answerIntent(question = '') {
+  const asksForStory = /\btell me about (?:a|an) (?:time|occasion|incident|project|presentation|decision|example)\b|\bdescribe (?:a|an) (?:time|occasion|situation|incident|project|presentation)\b|\bgive (?:me |us )?(?:a specific |an? )?example\b|\bhow (?:did|have) you\b|\bhave you ever\b/i.test(question);
+  if (/\bhow did (?:the |your )?(?:stakeholder|they|leader|HR partner).{0,24}(?:react|respond)\b|\bwhat was (?:their|the stakeholder[’']s) (?:initial )?reaction\b/i.test(question)) return 'reaction';
+  if (!asksForStory && /\b(?:executives?|execs?|leaders?|CFO|COO|CEO|VP)\b/i.test(question) && /\b(?:different|conflicting|disagree|contradictory|inconsistent|mismatch)\b/i.test(question) && /\b(?:meeting|room|right there|in the moment)\b/i.test(question)) return 'executive-disagreement';
+  if (!asksForStory && /\bprioriti[sz]\w*\b/i.test(question) && /\b(?:urgent|competing|multiple|leaders?|requests?|deadlines?)\b/i.test(question)) return 'prioritization';
   // Explicit hypothetical wording must win over phrases such as "under pressure".
   if (/\b(?:how|what|which) would you\b|\b(?:imagine|suppose|hypothetically)\b|\blet[’']?s say\b|\bif you (?:were|joined|had to)\b/i.test(question)) return 'case';
   if (/\bbackdat(?:ed|ing)|\blate.arriv|\bsnapshot strateg|\btimestamp (?:or|vs\.?) check/i.test(question)) return 'implementation';
-  if (/\btell me about (?:a|an) (?:time|occasion|incident|project|presentation|decision|example)\b|\bdescribe (?:a|an) (?:time|occasion|situation|incident|project|presentation)\b|\bgive (?:me |us )?(?:a specific |an? )?example\b|\bhow (?:did|have) you\b|\bhave you ever\b/i.test(question)) return 'story';
+  if (asksForStory) return 'story';
   if (/\b(?:present(?:ing|ed|ation)?|communicat\w*|explain|shar\w*)\b.*\b(?:executives?|leadership|stakeholders?|non.?technical|business audience)\b/i.test(question)) return 'communication';
   if (/\bwhy (?:this|do you want|are you interested)|\bwhat (?:draws|attracts|interests|excites) you\b/i.test(question)) return 'motivation';
   return '';
@@ -31,11 +35,16 @@ function buildAnswerTask(question) {
     communication: 'Show communication through one specific executive or stakeholder decision. Include the business question, the evidence or visual I would show, the recommendation, and the decision it enables. A past example should have a known outcome or be labeled illustrative. Avoid stopping at "tailor the message to the audience".',
     motivation: 'Give specific reasons tied to this role and team setup, supported by one relevant example of how I have worked. Discuss the professional collaboration benefits of the setup asked about. Do not invent relocation plans or commuting availability, and do not mention missing preferences or these internal constraints in the spoken answer.',
     implementation: 'Lead with an explicit conditional implementation choice ("Assuming ... I would choose ..."), then give a concrete record or date example, the important trade-off, and what is rebuilt and tested. Do not claim the assumed strategy was actually used. Do not open with a disclaimer about missing documentation or uncertainty over historical configuration.',
+    reaction: 'Answer this follow-up in about 20-35 seconds, roughly 50-85 words. Stay with the same stakeholder and episode: explain their initial reaction, what I said or changed in response, and what they agreed to do. Do not retell the technical problem or restart the whole story. Keep any illustrative details clearly illustrative.',
+    'executive-disagreement': 'Show calm executive presence before data mechanics. Give a brief neutral phrase I could say in the room without embarrassing either leader, keep the meeting moving, and establish whether the discrepancy changes the decision. Pause only the affected decision if needed. Then take visible ownership of validating the figures with the relevant owners. Keep legitimately different measures separately labeled; reconcile to one figure only if they are intended to measure the same thing. Do not force false agreement. Keep the spoken answer around 45-60 seconds, with one clear in-the-room action and follow-through.',
+    prioritization: 'Give a 45-60-second answer, roughly 110-150 words: one sentence about business impact and the actual decision deadline, ONE concrete mini-case comparing competing requests, and the order and trade-off I would communicate. Introduce a hypothetical mini-case with "For example"; it does not need a practice-story header because it is not claimed as past experience. State a realistic next step or owner. Stop after the example and alignment; do not add a long escalation, validation or governance checklist.',
   };
   if (!tasks[intent]) return '';
   const executiveExample = intent === 'story' && /\b(?:executives?|leadership|COO|CFO|CEO|VP|business leader)\b/i.test(question)
     ? '\n' + EXECUTIVE_STORY_STYLE : '';
-  return '=== Current answer task (non-coding only) ===\n' + tasks[intent] + executiveExample;
+  const stakeholderFocus = intent === 'story' && /\b(?:push.?back|disagree\w*|conflict|challeng\w* a (?:request|stakeholder))\b/i.test(question)
+    ? '\nSpend most of this story on stakeholder management: their underlying goal, the respectful words I used to push back, how they reacted, how I listened or negotiated an alternative, and the agreed action. Keep the data issue to a short explanation unless asked for implementation. Include the reaction and resolution in the main story, not just a follow-up. Use documented reactions where available; label a practice scenario when filling missing episode details.' : '';
+  return '=== Current answer task (non-coding only) ===\n' + tasks[intent] + stakeholderFocus + executiveExample;
 }
 
 const CATEGORY_PATTERNS = {
@@ -127,6 +136,8 @@ function detectCategory(transcript) {
   if (!recentThem) return 'general';
 
   const intent = answerIntent(recentThem);
+  if (intent === 'reaction') return 'behavioral';
+  if (intent === 'prioritization' || intent === 'executive-disagreement') return 'situational';
   if (intent === 'story') return 'behavioral';
   if (intent === 'implementation') return 'technical';
   if (intent === 'communication') return 'experience';
