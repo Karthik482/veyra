@@ -214,6 +214,43 @@ function questionTerms(question) {
   return [...new Set((question.toLowerCase().match(/[a-z][a-z0-9_]{2,}/g) || []).filter(term => !QUESTION_STOP_WORDS.has(term)))];
 }
 
+function selectStoryContext(stories, question = '', limit = 2000, transcript = []) {
+  if (!stories || !stories.trim()) return '';
+  const headers = [...stories.matchAll(/^=== INTERVIEW STORY: .+ ===\s*$/gm)];
+  if (!headers.length) return clip(stories.trim(), limit);
+  const cards = headers.map((header, index) => stories.slice(header.index, headers[index + 1]?.index ?? stories.length).trim());
+  const prefix = stories.slice(0, headers[0].index).trim();
+  if (prefix) cards.push(prefix);
+  const score = (card, text) => {
+    const terms = questionTerms(text);
+    const metadata = card.split(/\r?\n/).filter(line => /^===|^(?:Questions|Tags):/i.test(line)).join(' ').toLowerCase();
+    const body = card.toLowerCase();
+    return terms.reduce((sum, term) => sum + (metadata.includes(term) ? 6 : body.includes(term) ? 1 : 0), 0);
+  };
+  const directScores = cards.map(card => score(card, question));
+  const intent = answerIntent(question);
+  const newEpisode = /\btell me about|\bdescribe (?:a|an)|\bgive (?:me |us )?(?:an? |one )example|\bwalk (?:me|us) through/i.test(question);
+  const refersBack = /\b(?:they|them|that|this|the (?:leader|stakeholder|executive|decision|outcome|result|model|project))\b/i.test(question);
+  const followup = !newEpisode && (['reaction', 'example-followup'].includes(intent) || refersBack || Math.max(...directScores) < 6);
+  const latestReply = transcript.filter(turn => turn.channel === 'you').at(-1)?.text || '';
+  const priorQuestion = transcript.filter(turn => turn.channel === 'them').at(-2)?.text || '';
+  const ranked = cards.map((card, index) => ({
+    card, index,
+    score: directScores[index] + (followup ? score(card, priorQuestion) + score(card, latestReply.slice(0, 2500)) : 0),
+  })).sort((a, b) => b.score - a.score || Number(/\[CONFIRMED REAL\]/.test(b.card)) - Number(/\[CONFIRMED REAL\]/.test(a.card)) || a.index - b.index);
+  // Keep one episode and its status/outcome together; legacy notes retain the old caps.
+  const selected = ranked[0].card;
+  if (selected.length <= 2000) return selected;
+  const lines = selected.split(/\r?\n/);
+  const critical = line => /^===|^(?:(?:Practice )?Outcome|Result|Boundary|Status):/i.test(line);
+  const header = lines[0];
+  const ending = lines.slice(1).filter(critical).join('\n');
+  const reserved = header.length + ending.length + 2;
+  if (reserved >= 2000) return clip(header + '\n' + ending, 1999);
+  const detail = lines.slice(1).filter(line => !critical(line)).join('\n');
+  return header + '\n' + clip(detail, 2000 - reserved - 1) + '\n' + ending;
+}
+
 function selectJobDescription(jd, question = '', limit = 1800) {
   if (!jd || !jd.trim()) return '';
   // Rank requirements across the document instead of truncating a company's
@@ -349,7 +386,7 @@ function buildInterviewContext(settings, mode, transcript) {
       if (hasStories) {
         blocks.push(
           '=== Your STAR / Interview Stories (respect factual and practice labels) ===\n' +
-          clip(stories.trim(), 2000) + '\n' +
+          selectStoryContext(stories, question, 2000, transcript || []) + '\n' +
           'Use documented experience as factual reference and explicitly labeled practice material as an illustrative scenario. Do not promote a practice story into verified experience. Tell it in ordinary speech; keep STAR invisible and include only details that help answer the current question.'
         );
       } else {
@@ -369,12 +406,12 @@ function buildInterviewContext(settings, mode, transcript) {
 
     case 'situational':
       if (workStyle) blocks.push('Decision-Making Style / Values:\n' + clip(workStyle, 500));
-      if (hasStories) blocks.push('Relevant Past Experience:\n' + clip(stories, 800));
+      if (hasStories) blocks.push('Relevant Past Experience:\n' + selectStoryContext(stories, question, 800, transcript || []));
       break;
 
     case 'experience':
       // Already have full resume — no extra blocks needed
-      if (hasStories) blocks.push('Key Stories / Highlights:\n' + clip(stories, 1000));
+      if (hasStories) blocks.push('Key Stories / Highlights:\n' + selectStoryContext(stories, question, 1000, transcript || []));
       break;
 
     case 'compensation':
@@ -383,12 +420,12 @@ function buildInterviewContext(settings, mode, transcript) {
       break;
 
     case 'technical':
-      if (hasStories && isPersonalTechnicalQuestion(question)) blocks.push('Interview implementation notes (respect factual/practice labels and ownership):\n' + clip(stories, 1500));
+      if (hasStories && isPersonalTechnicalQuestion(question)) blocks.push('Interview implementation notes (respect factual/practice labels and ownership):\n' + selectStoryContext(stories, question, 1500, transcript || []));
       break;
 
     case 'general':
     default:
-      if (hasStories) blocks.push('Key Experience Highlights:\n' + clip(stories, 600));
+      if (hasStories) blocks.push('Key Experience Highlights:\n' + selectStoryContext(stories, question, 600, transcript || []));
       if (workStyle)  blocks.push('Work Style:\n' + clip(workStyle, 300));
       break;
   }
@@ -426,4 +463,4 @@ function buildResumeContext(resumeText, jobDescription, mode) {
   return parts.join('\n\n');
 }
 
-module.exports = { buildInterviewContext, buildResumeContext, detectCategory, parseResume, selectResumeContext, selectJobDescription, answerIntent };
+module.exports = { buildInterviewContext, buildResumeContext, detectCategory, parseResume, selectResumeContext, selectJobDescription, selectStoryContext, answerIntent };

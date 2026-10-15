@@ -1,0 +1,82 @@
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const { selectStoryContext, buildInterviewContext } = require('../src/interview-context');
+
+const definitions = [
+  ['Mobility', 'CONFIRMED REAL', 'technically challenging project complex implementation identity internal transfers', 'Identity records linked; enterprise departures excluded internal transfers.'],
+  ['History', 'ILLUSTRATIVE PRACTICE', 'data quality leadership reporting late backdated corrections historical headcount incremental processing', 'Historical snapshots rebuilt; spreadsheet corrections removed.'],
+  ['Disagreement', 'ILLUSTRATIVE PRACTICE', 'disagreed business stakeholder pushback retention ranking', 'Stakeholder removed a department from an escalation list.'],
+  ['Executive', 'ILLUSTRATIVE PRACTICE', 'analysis influenced leadership executive decision recruiting time to fill', 'Leader assigned a feedback review rather than extra hiring capacity.'],
+  ['Mistake', 'ILLUSTRATIVE PRACTICE', 'mistake learned failure ownership status inclusion rule', 'The leave-status exception stopped recurring.'],
+  ['Priorities', 'ILLUSTRATIVE PRACTICE', 'multiple urgent requests priorities deadline competing deliver everything', 'Reporting deadline met and smaller dashboard delivery agreed.'],
+];
+const cards = definitions.map(([name, status, questions, outcome], index) =>
+  `=== INTERVIEW STORY: ExampleCo ${name} [${status}] ===\nQuestions: ${questions}\n` +
+  `Episode: ${index === 0 ? 'Source detail. '.repeat(130) : 'Specific action in this episode. '.repeat(12)}\nOutcome: ${outcome}`);
+const bank = cards.join('\n\n');
+
+test('story selection finds each episode even beyond the old beginning-of-notes limit', () => {
+  const questions = [
+    'Tell me about the most technically challenging project you worked on.',
+    'Tell me about a data quality issue involving late corrections.',
+    'Tell me about a time you disagreed with a business stakeholder.',
+    'Tell me about a time your analysis influenced a leadership decision.',
+    'Tell me about a mistake you made and what you learned.',
+    'Tell me about a time you had multiple urgent requests and could not deliver everything.',
+  ];
+  questions.forEach((question, index) => {
+    const selected = selectStoryContext(bank, question);
+    assert.ok(selected.startsWith(cards[index].split('\n')[0]), question);
+    assert.ok(selected.includes(definitions[index][3]), 'selected outcome must survive');
+    assert.equal((selected.match(/=== INTERVIEW STORY:/g) || []).length, 1);
+    assert.ok(selected.length <= 2000);
+  });
+});
+
+test('a reaction or result follow-up retains the previous episode and its practice status', () => {
+  const question = 'What happened after that?';
+  const transcript = [
+    { channel: 'them', text: 'Tell me about a mistake you made and what you learned.' },
+    { channel: 'you', text: 'I assumed a status inclusion rule. I fixed the mistake after a review and changed the acceptance checks.' },
+    { channel: 'them', text: question },
+  ];
+  const selected = selectStoryContext(bank, question, 600, transcript);
+  assert.ok(selected.includes('ExampleCo Mistake [ILLUSTRATIVE PRACTICE]'));
+  assert.ok(selected.includes('leave-status exception stopped recurring'));
+  const decision = 'What did the leader actually decide to do?';
+  const executive = selectStoryContext(bank, decision, 2000, [
+    { channel: 'them', text: 'Tell me about a time your analysis influenced a leadership decision.' },
+    { channel: 'you', text: 'I compared delivery-stage timestamps. The leader assigned a feedback review rather than extra hiring capacity.' },
+    { channel: 'them', text: decision },
+  ]);
+  assert.ok(executive.includes('ExampleCo Executive [ILLUSTRATIVE PRACTICE]'));
+});
+
+test('an explicit new story request takes precedence over a previous long episode', () => {
+  const question = 'Tell me about a time your analysis influenced a leadership decision.';
+  const selected = selectStoryContext(bank, question, 2000, [
+    { channel: 'them', text: 'Tell me about competing priorities.' },
+    { channel: 'you', text: 'Multiple urgent requests and deadlines. '.repeat(70) },
+    { channel: 'them', text: question },
+  ]);
+  assert.ok(selected.includes('ExampleCo Executive [ILLUSTRATIVE PRACTICE]'));
+  assert.ok(!selected.includes('ExampleCo Priorities'));
+});
+
+test('structured cards keep their outcome for small context budgets while legacy notes stay compatible', () => {
+  const selected = selectStoryContext(bank, 'What did you learn from a mistake?', 100);
+  assert.ok(selected.includes('Outcome: The leave-status exception stopped recurring.'));
+  assert.ok(selected.includes('[ILLUSTRATIVE PRACTICE]'));
+  assert.equal(selectStoryContext('Unstructured old notes', '', 2000), 'Unstructured old notes');
+  assert.ok(selectStoryContext('x'.repeat(1000), '', 100).length <= 101);
+  assert.equal(selectStoryContext('', 'mistake'), '');
+});
+
+test('interview context includes the selected card rather than truncating the bank to its first episode', () => {
+  const context = buildInterviewContext({ resumeText: 'ExampleCo engineer', starStories: bank }, 'say', [
+    { channel: 'them', text: 'Tell me about a mistake you made and what you learned.' },
+  ]);
+  assert.ok(context.includes('ExampleCo Mistake [ILLUSTRATIVE PRACTICE]'));
+  assert.ok(context.includes('leave-status exception stopped recurring'));
+  assert.ok(!context.includes('ExampleCo Mobility [CONFIRMED REAL]'));
+});
