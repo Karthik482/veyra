@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { selectStoryContext, buildInterviewContext } = require('../src/interview-context');
+const { selectStoryContext, buildInterviewContext, detectCategory } = require('../src/interview-context');
 
 const definitions = [
   ['Mobility', 'CONFIRMED REAL', 'technically challenging project complex implementation identity internal transfers', 'Identity records linked; enterprise departures excluded internal transfers.'],
@@ -14,6 +14,31 @@ const cards = definitions.map(([name, status, questions, outcome], index) =>
   `=== INTERVIEW STORY: ExampleCo ${name} [${status}] ===\nQuestions: ${questions}\n` +
   `Episode: ${index === 0 ? 'Source detail. '.repeat(130) : 'Specific action in this episode. '.repeat(12)}\nOutcome: ${outcome}`);
 const bank = cards.join('\n\n');
+
+test('compensation analytics experience receives project notes rather than salary negotiation fields', () => {
+  const card = '=== INTERVIEW STORY: Compensation approach [HYPOTHETICAL] ===\nQuestions: compensation analytics\nMethod: join historical pay and job bands at the same effective date.\nBoundary: proposed approach, not confirmed work.';
+  const settings = { starStories: card, salaryTarget: 'PRIVATE_PAY_TARGET', questionsToAsk: 'PRIVATE_CLOSING_QUESTIONS' };
+  const transcript = [{ channel: 'them', text: 'Have you worked on compensation analytics?' }];
+  assert.equal(detectCategory(transcript), 'experience');
+  const context = buildInterviewContext(settings, 'say', transcript);
+  assert.ok(context.includes(card));
+  assert.ok(!context.includes(settings.salaryTarget));
+  assert.ok(!context.includes(settings.questionsToAsk));
+  assert.equal(detectCategory([{ channel: 'them', text: 'Explain compensation modeling and salary bands.' }]), 'technical');
+  const pay = [{ channel: 'them', text: 'What are your salary expectations for this compensation analytics role?' }];
+  assert.equal(detectCategory(pay), 'compensation');
+  const payContext = buildInterviewContext(settings, 'say', pay);
+  assert.ok(payContext.includes(settings.salaryTarget));
+  assert.ok(!payContext.includes(card));
+});
+
+test('requirements-discovery questions retain the relevant interview example', () => {
+  const card = '=== INTERVIEW STORY: Requirements discovery [ILLUSTRATIVE PRACTICE] ===\nQuestions: ambiguous requirements\nAction: agree the business decision and validate sample source records.';
+  const transcript = [{ channel: 'them', text: 'How do you handle ambiguous requirements?' }];
+  assert.equal(detectCategory(transcript), 'experience');
+  assert.ok(buildInterviewContext({ starStories: card }, 'say', transcript).includes(card));
+  assert.equal(detectCategory([{ channel: 'them', text: 'How does an index work?' }]), 'technical');
+});
 
 test('story selection finds each episode even beyond the old beginning-of-notes limit', () => {
   const questions = [

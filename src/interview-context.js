@@ -99,6 +99,7 @@ const CATEGORY_PATTERNS = {
     /walked into/i, /first (30|60|90) days/i,
   ],
   experience: [
+    /\bhow (?:do|did) you (?:handle|clarify|resolve|manage) (?:ambiguous|unclear|vague|changing) requirements\b/i,
     /tell me about your (experience|background|role|work|time) (at|in|with|on)/i,
     /walk me through your (resume|background|experience|role|career|most recent)/i,
     /walk me through (your|the) (role|position|work|project)/i,
@@ -162,6 +163,11 @@ function detectCategory(transcript) {
   if (intent === 'communication') return 'experience';
   if (intent === 'motivation') return 'motivation';
   if (intent === 'case' && !/\b(?:design|architecture|code|coding|algorithm|implement|sql|query)\b/i.test(recentThem)) return 'situational';
+
+  // Work involving compensation data is distinct from the candidate's pay.
+  const compensationWork = /\bcompensation (?:analytics|analysis|data|models?|modeling|modelling|reporting)\b|\bsalary bands?\b/i.test(recentThem);
+  const personalPay = /\b(?:salary|compensation) (?:expectations?|requirements?|targets?|package)\b|\b(?:your|desired|expected|current) (?:salary|compensation)\b/i.test(recentThem);
+  if (compensationWork && !personalPay) return isPersonalTechnicalQuestion(recentThem) ? 'experience' : 'technical';
 
   for (const [category, patterns] of Object.entries(CATEGORY_PATTERNS)) {
     if (patterns.some(re => re.test(recentThem))) return category;
