@@ -131,6 +131,25 @@ test('quality story keeps source-owner collaboration and material outcome withou
   assert.match(context, /corrected output, the decision protected/);
 });
 
+test('personal model walkthroughs keep the project episode while a focused follow-up stays on that model', () => {
+  const { answerIntent } = require('../src/interview-context');
+  const question = 'Can you walk me through one of the more complex dbt models you have built? How was the data structured, what business problem did it solve, and how did HR use the output?';
+  const story = 'ExampleCo recruiting duration model: one row per requisition, an agreed approval start date, and an accepted-offer end date. HR compared delays by role.';
+  const transcript = [{ channel: 'them', text: question }];
+  assert.equal(answerIntent(question), 'project-walkthrough');
+  assert.equal(detectCategory(transcript), 'experience');
+  const context = buildInterviewContext({ resumeText: 'ExampleCo engineer', starStories: story }, 'say', transcript);
+  assert.ok(context.includes(story));
+  const followup = 'Can you give me one example of a data quality issue you caught in that model and how you handled it?';
+  for (const example of ['one example', 'an example', 'a specific example']) {
+    assert.equal(answerIntent(followup.replace('one example', example)), 'example-followup');
+  }
+  assert.equal(detectCategory([...transcript, { channel: 'you', text: story }, { channel: 'them', text: followup }]), 'behavioral');
+  assert.equal(answerIntent('Tell me about a time your project failed.'), 'story');
+  assert.equal(answerIntent('How would you design a hiring analytics model?'), 'case');
+  assert.notEqual(answerIntent('Explain how a dbt model works.'), 'project-walkthrough');
+});
+
 test('executive story requests receive the stored episode and an outcome task', () => {
   const story = 'At ExampleCo, a COO needed to approve workforce planning. I compared the HR roster with Finance FTE totals, showed one reconciled chart and recommended separate definitions. The COO approved the corrected roster for planning.';
   const context = buildInterviewContext({ resumeText: 'ExampleCo engineer', starStories: story }, 'say', [{ channel: 'them', text: 'Describe a time you presented an analysis to an executive.' }]);

@@ -15,25 +15,20 @@ function answerIntent(question = '') {
   // Explicit hypothetical wording must win over phrases such as "under pressure".
   if (/\b(?:how|what|which) would you\b|\b(?:imagine|suppose|hypothetically)\b|\blet[’']?s say\b|\bif you (?:were|joined|had to)\b/i.test(question)) return 'case';
   if (/\bbackdat(?:ed|ing)|\blate.arriv|\bsnapshot strateg|\btimestamp (?:or|vs\.?) check/i.test(question)) return 'implementation';
+  if (/\b(?:an?|one)(?: specific| concrete)? example\b/i.test(question) && /\b(?:that|this|the same) (?:model|project|pipeline|system|report)|\bin that (?:case|situation)\b/i.test(question)) return 'example-followup';
+  if (!asksForStory && /\b(?:walk (?:me|us) through|tell (?:me|us) about|describe|explain)\b/i.test(question) && /\b(?:models?|pipelines?|projects?|systems?|services?|applications?)\b/i.test(question) && /\byour\b|\byou(?:[’']ve| have)? (?:built|developed|created|worked on|designed|structured)\b/i.test(question)) return 'project-walkthrough';
   if (asksForStory) return 'story';
   if (/\b(?:present(?:ing|ed|ation)?|communicat\w*|explain|shar\w*)\b.*\b(?:executives?|leadership|stakeholders?|non.?technical|business audience)\b/i.test(question)) return 'communication';
   if (/\bwhy (?:this|do you want|are you interested)|\bwhat (?:draws|attracts|interests|excites) you\b/i.test(question)) return 'motivation';
   return '';
 }
 
-const EXECUTIVE_STORY_STYLE =
-  'Style reference only, fictional and not candidate history: ' +
-  '"One example was a leadership review where HR and Finance showed different headcount totals. The executive was worried the dashboard could not be trusted. ' +
-  'I started with the business question instead of explaining the SQL. I compared the two populations and showed that one report counted month-end employees while the other included additional worker categories. ' +
-  'I used a simple side-by-side breakdown to show which groups explained the difference. That changed the conversation from missing data to choosing the right definition. ' +
-  'My recommendation was to use month-end active employee headcount for workforce planning and keep Finance\'s defined population for budgeting. Leadership agreed to use each measure for its own decision. ' +
-  'Before that, mismatches stalled reviews and triggered manual reconciliation. I updated the model definitions and dashboard labels to make both populations explicit. Afterward, the teams used the agreed measures consistently and reduced recurring reconciliation work." ' +
-  'Match that conversational pacing and specific cause-action-result connection. Use the candidate\'s actual episode when available; do not copy this fictional situation as verified history. Avoid adding analysis, a critique or a "why this works" section after the spoken answer.';
-
 function buildAnswerTask(question) {
   const intent = answerIntent(question);
   const tasks = {
-    story: 'Tell one past episode with a specific opening, 2-3 personal actions or decisions and why they mattered, and a clear before-and-after result. Use short paragraphs for easy reading. Spend little time on setup. Do not substitute a generic method or an "I would" checklist. If using a practice scenario, label it once and tell that illustrative story fully. For an executive presentation, identify the decision, what the evidence or visual actually showed, the recommendation and what the leader did with it. Name the business decision or operational action, not just "better alignment" or "a shared view".',
+    story: 'Tell one past episode as a recollection, with a clear before-and-after result. Say what was happening, explain the important thing I did and why, and land what changed for the people using the work. Keep any framework invisible and omit details that do not help this question. Use a single illustrative label if the episode is missing. For an executive presentation, explain what the evidence showed and what the leader did with it. Name the business action rather than saying "better alignment".',
+    'project-walkthrough': 'Choose ONE specific project or model from the background, not a combined summary of the whole role. Name its business use, explain the data structure in plain terms (for example what one row represents), and walk through the tricky part and how HR or other users used the result. Keep the explanation connected and conversational, not a list of staging, identity resolution, effective dates, tests and governance. Include technical detail that answers the question. Do not tack on portfolio model counts or broader pipeline refresh metrics unless this exact project caused them. Use a documented episode; label missing project details illustrative.',
+    'example-followup': 'This is a focused follow-up about the project just discussed. Stay with that same model and explain one concrete record, mismatch or situation, what I checked or changed, and what that fixed. Start with the specific issue, not the project introduction. About 30-45 seconds is often enough; expand if the question requests depth. Do not repeat career achievements, introduce a new project, or turn it into another full STAR answer. Preserve whether the earlier example was factual or illustrative.',
     case: 'Answer this hypothetical case with a focused analysis and one worked example. Then land on a concrete recommendation: who would act, what they would change, and which metric or observable result would show whether it worked. Do not end merely with "recommend a targeted action" or claim an unobserved improvement. Keep uncertainty proportional to the decision.',
     communication: 'Show communication through one specific executive or stakeholder decision. Include the business question, the evidence or visual I would show, the recommendation, and the decision it enables. A past example should have a known outcome or be labeled illustrative. Avoid stopping at "tailor the message to the audience".',
     motivation: 'Give specific reasons tied to this role and team setup, supported by one relevant example of how I have worked. Discuss the professional collaboration benefits of the setup asked about. Do not invent relocation plans or commuting availability, and do not mention missing preferences or these internal constraints in the spoken answer.',
@@ -45,13 +40,11 @@ function buildAnswerTask(question) {
     privacy: 'For this broad privacy question, answer a business audience in about 45-60 seconds, roughly 110-145 words. Lead with least privilege and small-group suppression: people see only the data needed for their decision, and tiny groups must not expose individuals. Give one brief relevant workplace example; use documented experience or a clearly hypothetical "For example, I would...", not an invented past privacy implementation. Mention warehouse-enforced access and one concrete check of what an unauthorized user cannot see. Explain that dashboard filters alone are insufficient. Do not list every role, masking policy, log, environment and review process; save implementation depth for a technical follow-up. Do not invent a universal group-size threshold.',
   };
   if (!tasks[intent]) return '';
-  const executiveExample = intent === 'story' && /\b(?:executives?|leadership|COO|CFO|CEO|VP|business leader)\b/i.test(question)
-    ? '\n' + EXECUTIVE_STORY_STYLE : '';
   const stakeholderFocus = intent === 'story' && /\b(?:push.?back|disagree\w*|conflict|challeng\w* a (?:request|stakeholder))\b/i.test(question)
     ? '\nSpend most of this story on stakeholder management: their underlying goal, the respectful words I used to push back, how they reacted, how I listened or negotiated an alternative, and the agreed action. Keep the data issue to a short explanation unless asked for implementation. Include the reaction and resolution in the main story, not just a follow-up. Use documented reactions where available; label a practice scenario when filling missing episode details.' : '';
   const qualityFocus = intent === 'story' && /\bdata.quality\b|\b(?:incorrect|inaccurate|wrong|misleading) (?:data|numbers|report\w*)\b/i.test(question)
-    ? '\nKeep this quality story near 60 seconds, roughly 140-170 words unless more detail is requested. Make the consequence tangible: which decision or reporting use was at risk and whether the error was actually material, using verified scale if known. Distinguish a potential bad decision from one that actually occurred. Show how I worked with the source owner or People Operations: what we checked together, what they confirmed or corrected, and how I verified the fix. End with the concrete corrected output, the decision protected and the repeatable control. Do not substitute "better data" for the outcome, invent a severity number, or borrow an unrelated resume metric. Label any missing episode details as illustrative.' : '';
-  return '=== Current answer task (non-coding only) ===\n' + tasks[intent] + stakeholderFocus + qualityFocus + executiveExample;
+    ? '\nMake the consequence tangible: which decision was at risk, using verified scale if known. Distinguish a potential bad decision from one that actually occurred. Explain the work with the source owner or People Operations: what they confirmed or corrected and what that let us fix. Land the corrected output, the decision protected and any repeatable control naturally, without a checklist or a minimum word count. Do not invent a severity number or borrow an unrelated resume metric. Label missing episode details illustrative.' : '';
+  return '=== Current answer task (non-coding only) ===\n' + tasks[intent] + stakeholderFocus + qualityFocus;
 }
 
 const CATEGORY_PATTERNS = {
@@ -146,6 +139,8 @@ function detectCategory(transcript) {
   if (intent === 'reaction') return 'behavioral';
   if (intent === 'prioritization' || intent === 'executive-disagreement' || intent === 'decision-recovery') return 'situational';
   if (intent === 'privacy') return 'situational';
+  if (intent === 'project-walkthrough') return 'experience';
+  if (intent === 'example-followup') return 'behavioral';
   if (intent === 'story') return 'behavioral';
   if (intent === 'implementation') return 'technical';
   if (intent === 'communication') return 'experience';
@@ -335,14 +330,12 @@ function buildInterviewContext(settings, mode, transcript) {
         blocks.push(
           '=== Your STAR Stories (use these for behavioral questions) ===\n' +
           clip(stories.trim(), 2000) + '\n' +
-          'IMPORTANT: When answering behavioral questions, use these real stories. ' +
-          'Structure your answer: Situation → Task → Action → Result. ' +
-          'Be specific, use numbers/metrics when available, keep it under 2 minutes spoken.'
+          'Use the relevant documented episode as factual reference, not a script. Tell it in ordinary speech; keep STAR invisible and include only details that help answer the current question.'
         );
       } else {
         blocks.push(
           '(No STAR stories provided. Use documented background as the anchor. If the requested episode is missing, provide a complete plausible practice story labeled "Illustrative scenario to adapt" once. ' +
-          'Include the concrete problem, stakeholders, candidate actions, implementation checks and an illustrative outcome; do not stop to request a story or present invented details as verified experience.)'
+          'Explain the problem, the action that mattered and what changed. Save implementation checks for questions that ask for them; do not stop to request a story or present invented details as verified experience.)'
         );
       }
       if (workStyle) blocks.push('Work Style / Values:\n' + clip(workStyle, 400));
