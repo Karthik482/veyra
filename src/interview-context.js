@@ -421,7 +421,10 @@ function buildInterviewContext(settings, mode, transcript) {
       break;
 
     case 'technical':
-      if (hasStories && isPersonalTechnicalQuestion(question)) blocks.push('Interview implementation notes (respect factual/practice labels and ownership):\n' + selectStoryContext(stories, question, 1500, transcript || []));
+      {
+        const followsCase = (transcript || []).filter(turn => turn.channel === 'them').length > 1 && /\b(?:this|that|it|the (?:model|approach|case|example|implementation))\b/i.test(question);
+        if (hasStories && (isPersonalTechnicalQuestion(question) || followsCase)) blocks.push('Interview implementation notes (respect factual/practice labels and ownership):\n' + selectStoryContext(stories, question, 1500, transcript || []));
+      }
       break;
 
     case 'general':

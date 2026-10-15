@@ -93,3 +93,16 @@ test('interview context includes the selected card rather than truncating the ba
   assert.ok(context.includes('leave-status exception stopped recurring'));
   assert.ok(!context.includes('ExampleCo Mobility [CONFIRMED REAL]'));
 });
+
+test('technical SQL follow-ups receive the selected case while unrelated definitions omit story notes', () => {
+  const allocation = '=== INTERVIEW STORY: Allocation cost reconciliation [HYPOTHETICAL] ===\nQuestions: employee allocation utilization labor cost salary overallocation SQL\nMethod: check overlapping working days and reconcile allocated plus unallocated cost to one salary pool.\nBoundary: hypothetical case, not past work.';
+  const settings = { resumeText: 'ExampleCo analytics engineer', starStories: bank + '\n\n' + allocation };
+  const context = buildInterviewContext(settings, 'say', [
+    { channel: 'them', text: 'An employee has overlapping client allocations totaling 110%. How would you prevent labor-cost double counting?' },
+    { channel: 'you', text: 'I would keep the overallocation exception and reconcile salary distribution to the cost pool.' },
+    { channel: 'them', text: 'How would you implement this in SQL? Explain in words.' },
+  ]);
+  assert.ok(context.includes(allocation));
+  const generic = buildInterviewContext(settings, 'say', [{ channel: 'them', text: 'Explain what a primary key is.' }]);
+  assert.ok(!generic || !generic.includes(allocation));
+});
